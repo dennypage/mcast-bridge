@@ -1,0 +1,40 @@
+#
+# Example mcast-bridge configuration file
+#
+# For detailed descriptions of configuration options, please see the README.
+#
+#
+# Each section in the configuration file defines an independent bridge
+# instance operating on the UDP port specified.
+#
+# Each section must specify the multicast group addresses that will be used
+# for the bridge instance. An instance may have a multicast group address
+# for IPv4, IPv6, or both. At least one multicast group address is required.
+#
+# Each section must specify the list of inbound and outbound interfaces that
+# the bridge instance will operate on. The inbound interface list defines
+# interfaces that the bridge will receive UDP packets from, and the outbound
+# interface list defines interfaces that UDP packets will be forwarded to.
+# An interface may be bidirectional (used for both inbound and outbound).
+#
+# Optionally, a section may specify a list of inbound or outbound interfaces
+# to be considered as static interfaces for the bridge instance.
+#
+# When an inbound interface is declared as static, mcast-bridge will join
+# the multicast group address for that bridge instance immediately on
+# startup, rather than waiting for an active subscriber.
+#
+# When an outbound interface is declared as static, IGMP/MLD will not be
+# enabled for the interface on that bridge instance, and mcast-bridge will
+# consider an active subscriber to always be present on the interface.
+
+
+[7500]
+    ipv4-address = 239.0.75.0
+    ipv6-address = ff05:0:0:0:0:0:0:7500
+
+    inbound-interfaces = igc0, igc1, igc2
+    outbound-interfaces = igc0, igc1, igc2
+
+    static-inbound-interfaces = igc1
+    static-outbound-interfaces = igc2

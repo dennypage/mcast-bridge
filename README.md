@@ -116,8 +116,7 @@ To manage dynamic interest, mcast-bridge implements the following protocols:
 * IPv6: MLD (Multicast Listener Discovery)
 
 See additional notes on the IGMP and MLD implementations below for additional
-information.
-
+information on the implementation of these protocols.
 
 Things to keep in mind when choosing between static and dynamic interest:
 * If a listener is expected to always be present on a bridge interface,
@@ -160,19 +159,24 @@ Things to keep in mind regarding static vs dynamic inbound interfaces:
 
 ### Notes on the IGMP and MLD implementations
 
-The IGMP implementation is based on RFC 2236 and RFC 9976,
-while the MLD implementation is based on RFC 2236 and RFC 9976.
+mcast-bridge implements IGMP and MLD to detect the presence of multicast
+subscribers in the network networks. The IGMP implementation is based on
+RFC 2236 and RFC 9976, while the MLD implementation is based on RFC 2236
+and RFC 9976. In the context of those standards, mcast-bridge operates
+as a multicast router, including the ability to operate as the elected
+querier in the network.
 
 The implementations deviate from the standards in the following aspects:
 
-1. The implementations ignore all link-local scope multicast addresses:
+1. The implementations ignore all (non-routable) link-local scope multicast
+   addresses:
    * IPv4: 224.0.0.0/24
    * IPv6: ff02::/16
-2. The IGMPv3 and MLDv2 implementations work at the IP group level only, ignoring
+3. The IGMPv3 and MLDv2 implementations work at the IP group level only, ignoring
    all source specific address information. This is similar to some switches or
    routers with the forwarding method set to "IP Group Address" instead of
    "Source Specific IP Group Address".
-3. The implementations offer multiple querier modes. One of these modes, "quick",
+4. The implementations offer multiple querier modes. One of these modes, "quick",
    corresponds to the RFC specified behaviors. The other modes are extensions or
    alterations of the RFC behavior. See below for additional information on the
    available querier modes.
@@ -183,39 +187,41 @@ The implementations deviate from the standards in the following aspects:
 
 The implementations offers multiple querier modes:
 * never: The querier function is completely disabled. With this mode, mcast-bridge
-         is completely passive and dependant on another querier being present.
-         This mode is appropriate to use with switches that are performing IGMP
-         or MLD snooping.
-* quick: The querier function is activated immediately at startup. This mode is the
+         is completely passive and dependent on another querier being present in
+         the network. This mode is appropriate to use with switches that are
+         already performing IGMP or MLD snooping.
+* quick: The querier function is activated immediately at startup, and mcast-bridge
+         will participate in the standard querier election process. This mode is the
          default, and corresponds to the RFC specified behavior.
-* delay: The querier function will be activated after 125 seconds if no other querier
-         has been seen. After the querier function has been activated, the querier
-         behaves per the RFC specified behavior, including participating in querier
-         elections.
-* defer: The querier function will be activated after 125 seconds if no other querier
-         has been seen. If any other querier is seen, the querier function will
-         deactivate, deferring to the new querier regardless of relative IP addresses.
-         This behavior corresponds to some switches or routers with a "Querier
-         Election Disabled" option.
+* delay: The querier function will be activated after 125 seconds if no active querier
+         has been seen, or after a previously active querier times out. After the
+         querier function has been activated, mcast-bridge will behave in the same
+         manner as quick mode, participating in the standard querier election process.
+* defer: The querier function will be activated after 125 seconds if no active querier
+         has been seen. Even after the querier function has been activated, if any
+         other querier is seen mcast-bridge will deactivate its querier function and
+         defer to the new querier regardless of relative IP addresses. This behavior
+         corresponds to some switches or routers with a "Querier Election Disabled"
+         option.
 
 Things to keep in mind regarding the querier function:
 * The querier function is only used on dynamic interest interfaces. If a bridge
-  interface is declared as static, the querier function is not used on that
-  interface.
-* As a querier mcast-bridge can only track a limited number of groups. mcast-bridge
+  interface is declared as static, IGMP/MLD will not be active on that interface,
+  and mcast-bridge will not operate as a querier on that interface.
+* As a querier, mcast-bridge tracks a limited number of groups. mcast-bridge
   tracks all groups that have been explicitly configured as part of a bridge, and
   up to 100 additional groups per interface. If you have a large network with
   more than 100 active multicast groups, a switch or router should be used as the
   active querier and the mcast-bridge querier option should be set to "never".
 * When used with a switch that has IGMP or MLD snooping enabled, all querier modes
-  require the port(s) used for mcaast-bridge to be configured as Multicast Router
-  Ports. If the querier function seems to work initially, and then stops after a
+  require the port(s) used for mcast-bridge to be configured as Multicast Router
+  Ports. If dynamic interest seems to work initially, and then stops after a
   while, it is likely that a switch or router has disabled the necessary multicast
   control groups on the port(s) mcast-bridge is attached to. Check the switch
   Multicast Router Port configuration.
 * Configuration details of various multicast enabled switches or routers vary
   wildly, and often are not for the faint of heart. Assistance on the configuration
-  of specific switches or routers is far outside the scope of this probject, so
+  of specific switches or routers is far outside the scope of this project, so
   please don't ask. If you run into difficulty configuring a multicast switch, save
   yourself, and everyone around you, a lot of grief by using a static interface.
 

@@ -141,7 +141,7 @@ Things to keep in mind when choosing between static and dynamic interest:
 
 Inbound interfaces that are declared as static join the multicast group
 immediately on startup, whereas dynamic interfaces will not join the
-multicast group until a listener appears on one of the other interfaces
+multicast group until a listener appears on one of the outbound interfaces
 in the bridge.
 
 Things to keep in mind regarding static vs dynamic inbound interfaces:
@@ -199,7 +199,7 @@ The implementations offers multiple querier modes:
          Election Disabled" option.
 
 Things to keep in mind regarding the querier function:
-* The querier function is only use on dynamic interest interfaces. If a bridge
+* The querier function is only used on dynamic interest interfaces. If a bridge
   interface is declared as static, the querier function is not used on that
   interface.
 * As a querier mcast-bridge can only track a limited number of groups. mcast-bridge

@@ -3,7 +3,7 @@
 
 lib_pcap = -l pcap
 
-all: mcast-bridge mcb-test
+all: mcast-bridge mcast-sr
 
 protocol_objects = igmp.o mld.o
 $(protocol_objects): protocols.h
@@ -16,4 +16,4 @@ mcast-bridge: $(all_objects)
 
 .PHONY: clean
 clean:
-	rm -f mcast-bridge mcb-test $(all_objects)
+	rm -f mcast-bridge mcast-sr $(all_objects)

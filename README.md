@@ -222,15 +222,15 @@ Things to keep in mind regarding the querier function:
 
 ---
 
-### The mcast-bridge test program (mcb-test)
+### The mcast-bridge send/receive test program (mcast-sr)
 
-The mcast-bridge distribution includes a simple test program, mcb-test, that may
+The mcast-bridge distribution includes a simple test program, mcast-sr, that may
 be used to confirm multicast connectivity between segments.
 
-The command line usage for mcb-test is:
+The command line usage for mcast-sr is:
 
 ```
-mcb-test [-4|-6] [-n] [-s] [-i interface] [-p port] [multicast address]
+mcast-sr [-4|-6] [-n] [-s] [-i interface] [-p port] [multicast address]
 
   options:
     -h               Display usage

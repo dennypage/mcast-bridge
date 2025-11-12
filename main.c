@@ -165,25 +165,20 @@ static void parse_querier_mode(
     const char *                mode_str,
     querier_mode_type_t *       mode)
 {
-    printf("optarg: %s\n", mode_str);
     if (strcmp(mode_str, "never") == 0)
     {
-        printf("here0\n");
         *mode = QUERIER_MODE_NEVER;
     }
     else if (strcmp(mode_str, "quick") == 0)
     {
-        printf("here1\n");
         *mode = QUERIER_MODE_QUICK;
     }
     else if (strcmp(mode_str, "delay") == 0)
     {
-        printf("here2\n");
         *mode = QUERIER_MODE_DELAY;
     }
     else if (strcmp(mode_str, "defer") == 0)
     {
-        printf("here3\n");
         *mode = QUERIER_MODE_DEFER;
     }
     else

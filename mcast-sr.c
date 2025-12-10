@@ -415,7 +415,7 @@ static void parse_args(
                 inet_ntop(AF_INET, &ipv4_group_sockaddr_in.sin_addr, addr_str, sizeof(addr_str)));
             fprintf(stderr, "  the default multicast address for IP version 6 is %s\n",
                 inet_ntop(AF_INET6, &ipv6_group_sockaddr_in6.sin6_addr, addr_str, sizeof(addr_str)));
-            exit(1);
+            exit(EXIT_FAILURE);
         }
     }
 

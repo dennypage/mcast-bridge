@@ -131,7 +131,7 @@ static void term_handler(
         (void) unlink(pidfile_name);
     }
     logger("Exiting on signal %d\n", signum);
-    exit(0);
+    exit(EXIT_SUCCESS);
 }
 
 
@@ -161,7 +161,7 @@ static void usage(
     fprintf(stderr, "    defer  Become a querier after 125 seconds if no other querier has been seen\n");
     fprintf(stderr, "           and always defer to any other queriers that may appear regardless of\n");
     fprintf(stderr, "           relative IP address\n");
-    exit(1);
+    exit(EXIT_FAILURE);
 }
 
 

@@ -45,7 +45,7 @@
 //
 // The MLD implementation herein is primarily based on RFC 2236 and RFC 9976.
 //
-// It deviates from the standards in the following aspects:
+// The implementation deviates from the standards in the following aspects:
 //
 //  1. The implementation ignores all link-local scope multicast addresses (ff02::/16).
 //
@@ -65,6 +65,17 @@
 //  4. The implementation allows a few milliseconds of grace time for protocol timeouts
 //     to allow for network round trip and host processing time.
 //
+//
+//
+// The Multicast Router Discovery implementation is based on RFC 4286.
+//
+// Minor notes regarding the implementation:
+//
+//  1. The implementation does not wait a random interval prior to sending the first
+//     Multicast Router Discovery Advertisement message, however subequent initial
+//     advertisements are sent with a random interval.
+//  2. No Multiast Router Discovery Termination messages are sent.
+//
 
 
 
@@ -81,9 +92,10 @@
 //     Header type 58 is ICMPv6
 //     Offset 48 is the ICMPv6 (MLD) message type
 //
-#define MLD_FILTER              "ip6 && ip6[40] == 58 && (ip6[48] == 130 || ip6[48] == 131 || ip6[48] == 132 || ip6[48] == 143)"
+#define MLD_FILTER              "ip6 && ip6[40] == 58 && (ip6[48] == 130 || ip6[48] == 131 || ip6[48] == 132 || ip6[48] == 143 || ip6[48] == 152)"
 
-// Query buffer size
+// Buffer sizes
+#define MLD_MRD_BUFFER_SIZE     (sizeof(mcb_ethernet_t) +sizeof(mcb_ip6_t) + sizeof(mcb_ip6_hbh_t) + sizeof(mcb_mrd_advertisement_t))
 #define MLD_QUERY_BUFFER_SIZE   (sizeof(mcb_ethernet_t) +sizeof(mcb_ip6_t) + sizeof(mcb_ip6_hbh_t) + sizeof(mcb_mld_v2_query_t))
 
 // Grace period for protocol timeouts in milliseconds
@@ -137,8 +149,14 @@ typedef struct mld_interface
     unsigned int                querier_response_interval_millis;
     unsigned int                querier_lastmbr_interval_millis;
 
+    // Number of initial multicast router advertisements remaining
+    unsigned int                mrd_initial_advertisements_remaining;
+
     // Number of startup queries remaining
     unsigned int                startup_queries_remaining;
+
+    // Packet for multicast router advertisements
+    uint8_t                     mrd_advertisement_packet[MLD_MRD_BUFFER_SIZE];
 
     // Packets for general and group specific queries
     uint8_t                     general_query_packet[MLD_QUERY_BUFFER_SIZE];
@@ -157,6 +175,7 @@ static unsigned int             mld_interface_list_count = 0;
 // Special addresses
 static uint8_t                  any_addr[MCB_IP6_ADDR_LEN] = MCB_IP6_ANY;
 static uint8_t                  allnodes_addr[MCB_IP6_ADDR_LEN] = MCB_IP6_ALL_NODES;
+static uint8_t                  allsnoopers_addr[MCB_IP6_ADDR_LEN] = MCB_IP6_ALL_SNOOPERS;
 
 
 
@@ -183,6 +202,70 @@ static void mld_log(
     }
 
     logger("MLD(%s) [%s]: %s\n", mld_interface->name, addr_str, msg);
+}
+
+
+//
+// Build the multicast router advertisement packet
+//
+static void mld_build_mrd_advertisement_packet(
+    mld_interface_t *           mld_interface)
+{
+    mcb_ethernet_t *            ethernet;
+    mcb_ip6_t *                 ip;
+    mcb_ip6_hbh_t *             ip_hbh;
+    mcb_ip6_padn_t *            ip_padn;
+    mcb_ip6_ra_t *              ip_ra;
+    mcb_mrd_advertisement_t *   mrd_advertisement;
+    uint8_t                     buffer[MLD_MRD_BUFFER_SIZE];
+
+    // Initialize the buffer
+    memset(buffer, 0, sizeof(buffer));
+
+    // Pointers to the individual headers
+    ethernet = (mcb_ethernet_t *) buffer;
+    ip = (mcb_ip6_t *) (buffer + sizeof(mcb_ethernet_t));
+    ip_hbh = (mcb_ip6_hbh_t *) (buffer + sizeof(mcb_ethernet_t) + sizeof(mcb_ip6_t));
+    ip_ra = (mcb_ip6_ra_t *) &ip_hbh->options[0];
+    ip_padn = (mcb_ip6_padn_t *) &ip_hbh->options[4];
+    mrd_advertisement = (mcb_mrd_advertisement_t *) (buffer + sizeof(mcb_ethernet_t) + sizeof(mcb_ip6_t) + sizeof(mcb_ip6_hbh_t));
+
+    // Build the Ethernet header
+    ethernet->type = htons(MCB_ETHERNET_TYPE_IP6);
+    // NB: The format of the dst addr for IPv6 multicast is 33:33:XX:XX:XX:XX where
+    // XX:XX:XX:XX is the last 4 bytes of the IPv6 multicast address.
+    ethernet->dst[0] = 0x33;
+    ethernet->dst[1] = 0x33;
+    memcpy(&ethernet->dst[2], &allsnoopers_addr[12], 4);
+    MCB_ETH_ADDR_CPY(ethernet->src, mld_interface->if_mac_addr);
+
+    // Build the IP header
+    ip->v_tc_flow = htonl(0x60000000);
+    ip->payload_len = htons(sizeof(mcb_ip6_hbh_t) + sizeof(mcb_mrd_advertisement_t));
+    ip->next_header = MCB_IP6_OPT_HOP;
+    ip->hop_limit = 1;
+    MCB_IP6_ADDR_CPY(ip->src, mld_interface->if_addr);
+    MCB_IP6_ADDR_CPY(ip->dst, allsnoopers_addr);
+
+    // Build the Hop-by-Hop header
+    ip_hbh->next_header = MCB_IP6_PROTO_ICMPV6;
+    // ip_hbh->header_len is zero
+    ip_ra->option = MCB_IP6_OPT_RA;
+    ip_ra->length = 2;
+    // ip_ra->value is zero (MLD)
+    ip_padn->option = MCB_IP6_OPT_PADN;
+    // ip_padn->length is zero
+
+    // Build the MRD Advertisement
+    mrd_advertisement->type = MCB_MLD_MRD_ADVERTISEMENT;
+    mrd_advertisement->interval = MCB_MRD_INTERVAL;
+    mrd_advertisement->qqi = htons(MCB_MLD_QUERY_INTERVAL);
+    mrd_advertisement->qrv = htons(MCB_MLD_ROBUSTNESS);
+
+    // Set the checksum
+    mrd_advertisement->csum = inet6_csum((uint16_t *) mrd_advertisement, sizeof(*mrd_advertisement),
+        (uint16_t *) ip->src, (uint16_t *) ip->dst, MCB_IP6_PROTO_ICMPV6);
+    memcpy(mld_interface->mrd_advertisement_packet, buffer, sizeof(mld_interface->mrd_advertisement_packet));
 }
 
 
@@ -253,6 +336,47 @@ static void mld_build_query_packets(
     mld_query->csum = inet6_csum((uint16_t *) mld_query, sizeof(*mld_query),
         (uint16_t *) ip->src, (uint16_t *) ip->dst, MCB_IP6_PROTO_ICMPV6);
     memcpy(mld_interface->general_query_packet, buffer, sizeof(mld_interface->general_query_packet));
+}
+
+
+//
+// Send a multicast router advertisement
+//
+static void mld_send_mrd_advertisement(
+    void *                      arg)
+{
+    mld_interface_t *           mld_interface = (mld_interface_t *) arg;
+    unsigned int                millis;
+    int                         r;
+    char                        src_addr_str[INET6_ADDRSTRLEN] = {0};
+
+    // Debug logging
+    if (debug_level >= 3)
+    {
+        inet_ntop(AF_INET6, mld_interface->if_addr, src_addr_str, sizeof(src_addr_str));
+        logger("MLD(%s) [%s]: sending Multicast Router Discovery advertisement\n", mld_interface->name, src_addr_str);
+    }
+
+    r = pcap_inject(mld_interface->pcap, mld_interface->mrd_advertisement_packet, sizeof(mld_interface->mrd_advertisement_packet));
+    if (r == PCAP_ERROR)
+    {
+        logger("MLD(%s): pcap_inject failed: %s\n", mld_interface->name, pcap_geterr(mld_interface->pcap));
+    }
+
+    // Set the next advertisement interval
+    if (mld_interface->mrd_initial_advertisements_remaining)
+    {
+        // Are we in startup mode?
+        mld_interface->mrd_initial_advertisements_remaining -= 1;
+        millis = MCB_MRD_INITIAL_INTERVAL_MS;
+    }
+    else
+    {
+        millis = MCB_MRD_INTERVAL_MS;
+    }
+
+    // Set a timer for the next advertisement
+    evm_add_timer(mld_evm, millis, mld_send_mrd_advertisement, mld_interface);
 }
 
 
@@ -381,7 +505,7 @@ static void mld_activate_querier_mode(
     MCB_IP6_ADDR_CPY(mld_interface->querier_addr, mld_interface->if_addr);
 
     // Send the first general query
-    mld_interface->startup_queries_remaining = mld_interface->querier_robustness;
+    mld_interface->startup_queries_remaining = mld_interface->querier_robustness - 1;
     mld_send_general_query(mld_interface);
 }
 
@@ -521,6 +645,27 @@ static mld_group_t * mld_interface_find_group(
 
     // NB: The caller will set the active flag
     return first_empty_slot;
+}
+
+
+//
+// Handle an MRD solicitation
+//
+static void handle_mld_mrd_solicitation(
+    mld_interface_t *           mld_interface,
+    const uint8_t *             ip_src)
+{
+    char                        src_addr_str[INET6_ADDRSTRLEN] = {0};
+
+    // Debug logging
+    if (debug_level >= 3)
+    {
+        inet_ntop(AF_INET6, ip_src, src_addr_str, sizeof(src_addr_str));
+        logger("MLD(%s) [%s]: received Multicast Router Solicitation\n", mld_interface->name, src_addr_str);
+    }
+
+    evm_del_timer(mld_evm, mld_send_mrd_advertisement, mld_interface);
+    mld_send_mrd_advertisement(mld_interface);
 }
 
 
@@ -1046,6 +1191,12 @@ static void mld_receive(
             handle_mld_v2_report(mld_interface, ip->src, (uint8_t *) mld, packet_len);
             break;
 
+        case MCB_MLD_MRD_SOLICITATION:
+            handle_mld_mrd_solicitation(mld_interface, ip->src);
+            break;
+
+        // NB: MCB_MLD_MRD_ADVERTISEMENT and MCB_MLD_MRD_TERMINATION
+        //     are not passed by the pcap filter.
         default:
             mld_log(mld_interface, ip->src, "Unknown MLD type received");
             break;
@@ -1404,6 +1555,13 @@ void start_mld(void)
     for (interface_index = 0; interface_index < mld_interface_list_count; interface_index += 1)
     {
         mld_interface = &mld_interface_list[interface_index];
+
+        // Build the multicast router advertisement packet
+        mld_build_mrd_advertisement_packet(mld_interface);
+
+        // Send the first multicast router advertisement (no jitter)
+        mld_interface->mrd_initial_advertisements_remaining = MCB_MRD_INITIAL_COUNT - 1;
+        mld_send_mrd_advertisement(mld_interface);
 
         // Build the query packets
         mld_build_query_packets(mld_interface);

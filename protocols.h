@@ -61,6 +61,7 @@
 #define MCB_IP4_ALL_SYSTEMS         0xe0000001
 #define MCB_IP4_ALL_ROUTERS         0xe0000002
 #define MCB_IP4_ALL_REPORTS         0xe0000016
+#define MCB_IP4_ALL_SNOOPERS        0xe000006a
 
 // IPv4 Types
 #define MCB_IP4_PROTOCOL_IGMP       2
@@ -75,8 +76,11 @@
 #define MCB_IGMP_V2_REPORT          0x16    // Sent to the multicast group in question (v2 only)
 #define MCB_IGMP_V2_LEAVE           0x17    // Sent to all routers group (v2 only)
 #define MCB_IGMP_V3_REPORT          0x22    // Sent to the all reports group (v3 only)
+#define MCB_IGMP_MRD_ADVERTISEMENT  0x30    // Sent to the all snoopers group
+#define MCB_IGMP_MRD_SOLICITATION   0x31    // Sent to the all routers group
+#define MCB_IGMP_MRD_TERMINATION    0x32    // Sent to the all snoopers group
 
-// IGMP default protocol parameters (defaults from RFC 2236 & RFC 9776)
+// IGMP protocol parameters (defaults from RFC 2236 & RFC 9776)
 #define MCB_IGMP_ROBUSTNESS         2
 #define MCB_IGMP_QUERY_INTERVAL     125     // seconds
 #define MCB_IGMP_RESPONSE_INTERVAL  100     // 10ths of a second
@@ -94,6 +98,7 @@
 #define MCB_IP6_ALL_NODES           { 0xff, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 }
 #define MCB_IP6_ALL_ROUTERS         { 0xff, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02 }
 #define MCB_IP6_ALL_ROUTERS_V2      { 0xff, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10 }
+#define MCB_IP6_ALL_SNOOPERS        { 0xff, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x6a }
 
 // IPv6 Types
 #define MCB_IP6_OPT_PADN            0x01
@@ -107,8 +112,11 @@
 #define MCB_MLD_V1_REPORT           0x81    // Sent to the multicast group in question
 #define MCB_MLD_V1_DONE             0x83    // Sent to all routers group
 #define MCB_MLD_V2_REPORT           0x8f    // Sent to all routers v2 group
+#define MCB_MLD_MRD_ADVERTISEMENT   0x97    // Sent to the all snoopers group
+#define MCB_MLD_MRD_SOLICITATION    0x98    // Sent to the all routers group
+#define MCB_MLD_MRD_TERMINATION     0x99    // Sent to the all snoopers group
 
-// MLD default protocol parameters (defaults from RFC 2710 & RFC 9777)
+// MLD protocol parameters (defaults from RFC 2710 & RFC 9777)
 #define MCB_MLD_ROBUSTNESS          2
 #define MCB_MLD_QUERY_INTERVAL      125     // seconds
 #define MCB_MLD_RESPONSE_INTERVAL   10000   // milliseconds
@@ -123,6 +131,21 @@
 #define MCB_REC_ALLOW_NEW_SOURCES   0x05
 #define MCB_REC_BLOCK_OLD_SOURCES   0x06
 
+
+// MRD protocol parameters for both IGMP and MLD (defaults from RFC 4286)
+#define MCB_MRD_INTERVAL            20    // seconds
+#define MCB_MRD_INTERVAL_JITTER     500   // milliseconds (advertisement interval * 0.25)
+#define MCB_MRD_INITIAL_INTERVAL    2     // seconds
+#define MCB_MRD_INITIAL_COUNT       3
+
+// Number of milliseconds until the next MRD advertisement
+#define MCB_MRD_INTERVAL_MS         \
+    (((MCB_MRD_INTERVAL * 1000) - MCB_MRD_INTERVAL_JITTER) + \
+     (rand() % (MCB_MRD_INTERVAL_JITTER * 2)))
+
+// Number of milliseconds until the next initial (startup) MRD advertisement
+#define MCB_MRD_INITIAL_INTERVAL_MS \
+    (rand() % ((MCB_MRD_INITIAL_INTERVAL * 1000)))
 
 
 // Ethernet header structure
@@ -426,5 +449,46 @@ typedef struct __attribute__((packed))
     // Address Records
     mcb_mld_v2_group_record_t   groups[];
 } mcb_mld_v2_report_t;
+
+
+// Multicast Router Advertisement structure (common to IGMP and MLD)
+typedef struct __attribute__((packed))
+{
+    // Type
+    uint8_t                     type;
+    // Advertisement Interval in seconds
+    uint8_t                     interval;
+    // Checksum
+    uint16_t                    csum;
+    // Querier Query Interval in seconds
+    uint16_t                    qqi;
+    // Querier Robustness Value
+    uint16_t                    qrv;
+}
+mcb_mrd_advertisement_t;
+
+// Multicast Router Solicitation structure (common to both IGMP and MLD)
+typedef struct __attribute__((packed))
+{
+    // Type
+    uint8_t                     type;
+    // Advertisement Interval in seconds
+    uint8_t                     reserved;
+    // Checksum
+    uint16_t                    csum;
+}
+mcb_mrd_solicitation_t;
+
+// Multicast Router Termination structure (common to both IGMP and MLD)
+typedef struct __attribute__((packed))
+{
+    // Type
+    uint8_t                     type;
+    // Advertisement Interval in seconds
+    uint8_t                     reserved;
+    // Checksum
+    uint16_t                    csum;
+}
+mcb_mrd_termination_t;
 
 #endif // _PROTOCOLS_H

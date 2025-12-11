@@ -45,7 +45,7 @@
 //
 // The IGMP implementation herein is primarily based on RFC 2236 and RFC 9976.
 //
-// It deviates from the standards in the following aspects:
+// The implementation deviates from the standards in the following aspects:
 //
 //  1. The implementation ignores all link-local scope multicast addresses (224.0.0.0/24).
 //
@@ -65,6 +65,17 @@
 //  4. The implementation allows a few milliseconds of grace time for protocol timeouts
 //     to allow for network round trip and host processing time.
 //
+//
+//
+// The Multicast Router Discovery implementation is based on RFC 4286.
+//
+// Minor notes regarding the implementation:
+//
+//  1. The implementation does not wait a random interval prior to sending the first
+//     Multicast Router Discovery Advertisement message, however subequent initial
+//     advertisements are sent with a random interval.
+//  2. No Multiast Router Discovery Termination messages are sent.
+//
 
 
 
@@ -78,7 +89,8 @@
 //
 #define IGMP_FILTER             "igmp"
 
-// Query buffer size
+// Buffer sizes
+#define IGMP_MRD_BUFFER_SIZE    (sizeof(mcb_ethernet_t) + sizeof(mcb_ip4_t) + sizeof(mcb_ip4_ra_opt_t) + sizeof(mcb_mrd_advertisement_t))
 #define IGMP_QUERY_BUFFER_SIZE  (sizeof(mcb_ethernet_t) + sizeof(mcb_ip4_t) + sizeof(mcb_ip4_ra_opt_t) + sizeof(mcb_igmp_v3_query_t))
 
 // Grace period for protocol timeouts in milliseconds
@@ -133,8 +145,14 @@ typedef struct igmp_interface
     unsigned int                querier_response_interval_tenths;
     unsigned int                querier_lastmbr_interval_tenths;
 
+    // Number of initial multicast router advertisements remaining
+    unsigned int                mrd_initial_advertisements_remaining;
+
     // Number of startup queries remaining
     unsigned int                startup_queries_remaining;
+
+    // Packet for muticast router advertisements
+    uint8_t                     mrd_advertisement_packet[IGMP_MRD_BUFFER_SIZE];
 
     // Packets for general and group specific queries
     uint8_t                     general_query_packet[IGMP_QUERY_BUFFER_SIZE];
@@ -153,6 +171,7 @@ static unsigned int             igmp_interface_list_count = 0;
 // Special addresses
 static uint8_t                  any_addr[MCB_IP4_ADDR_LEN] = MCB_IP4_ANY;
 static uint8_t                  allhosts_addr[MCB_IP4_ADDR_LEN];
+static uint8_t                  allsnoopers_addr[MCB_IP4_ADDR_LEN];
 
 
 
@@ -179,6 +198,68 @@ static void igmp_log(
     }
 
     logger("IGMP(%s) [%s]: %s\n", igmp_interface->name, addr_str, msg);
+}
+
+
+//
+// Build the multicast router advertisement packet
+//
+static void igmp_build_mrd_advertisement_packet(
+    igmp_interface_t *          igmp_interface)
+{
+    mcb_ethernet_t *            ethernet;
+    mcb_ip4_t *                 ip;
+    mcb_ip4_ra_opt_t *          ip_ra;
+    mcb_mrd_advertisement_t *   mrd_advertisement;
+    uint8_t                     buffer[IGMP_MRD_BUFFER_SIZE];
+
+    // Initialize the buffer
+    memset(buffer, 0, sizeof(buffer));
+
+    // Pointers to the individual headers
+    ethernet = (mcb_ethernet_t *) buffer;
+    ip = (mcb_ip4_t *) (buffer + sizeof(mcb_ethernet_t));
+    ip_ra = (mcb_ip4_ra_opt_t *) (buffer + sizeof(mcb_ethernet_t) + sizeof(mcb_ip4_t));
+    mrd_advertisement = (mcb_mrd_advertisement_t *) (buffer + (sizeof(mcb_ethernet_t) + sizeof(mcb_ip4_t) + sizeof(mcb_ip4_ra_opt_t)));
+
+    // Build the Ethernet header
+    ethernet->type = htons(MCB_ETHERNET_TYPE_IP4);
+    // NB: The format of the dst addr for IPv4 multicast is 01:00:5e:XX:XX:XX where
+    // XX:XX:XX is the last 23 bits of the IP4 multicast address.
+    ethernet->dst[0] = 0x01;
+    ethernet->dst[1] = 0x00;
+    ethernet->dst[2] = 0x5e;
+    ethernet->dst[3] = allsnoopers_addr[1] & 0x7f;
+    ethernet->dst[4] = allsnoopers_addr[2];
+    ethernet->dst[5] = allsnoopers_addr[3];
+    MCB_ETH_ADDR_CPY(ethernet->src, igmp_interface->if_mac_addr);
+
+    // Build the IP header
+    ip->version = 4;
+    ip->header_len = (sizeof(mcb_ip4_t) + sizeof(mcb_ip4_ra_opt_t)) >> 2;
+    ip->total_len = htons(sizeof(mcb_ip4_t) + sizeof(mcb_ip4_ra_opt_t) + sizeof(mcb_mrd_advertisement_t));
+    ip->offset = htons(MCB_IP4_OFF_DF);
+    ip->tos = MCB_IP4_TOS_IC;
+    ip->ttl = 1;
+    ip->protocol = IPPROTO_IGMP;
+    MCB_IP4_ADDR_CPY(ip->src, igmp_interface->if_addr);
+    MCB_IP4_ADDR_CPY(ip->dst, allsnoopers_addr);
+
+    // Build the IP Router Alert option
+    ip_ra->type = MCB_IP4_OPT_RA;
+    ip_ra->length = 4;
+    ip_ra->value = 0;
+
+    // Build the MRD Advertisement
+    mrd_advertisement->type = MCB_IGMP_MRD_ADVERTISEMENT;
+    mrd_advertisement->interval = MCB_MRD_INTERVAL;
+    mrd_advertisement->qqi = htons(MCB_IGMP_QUERY_INTERVAL);
+    mrd_advertisement->qrv = htons(MCB_IGMP_ROBUSTNESS);
+
+    // Set the checksums
+    ip->csum = inet_csum((uint16_t *) ip, sizeof(mcb_ip4_t) + sizeof(mcb_ip4_ra_opt_t));
+    mrd_advertisement->csum = inet_csum((uint16_t *) mrd_advertisement, sizeof(*mrd_advertisement));
+    memcpy(igmp_interface->mrd_advertisement_packet, buffer, sizeof(igmp_interface->mrd_advertisement_packet));
 }
 
 
@@ -247,6 +328,47 @@ static void igmp_build_query_packets(
     igmp_query->code = MCB_IGMP_RESPONSE_INTERVAL;
     igmp_query->csum = inet_csum((uint16_t *) igmp_query, sizeof(*igmp_query));
     memcpy(igmp_interface->general_query_packet, buffer, sizeof(igmp_interface->general_query_packet));
+}
+
+
+//
+// Send a multicast router advertisement
+//
+static void igmp_send_mrd_advertisement(
+    void *                      arg)
+{
+    igmp_interface_t *          igmp_interface = (igmp_interface_t *) arg;
+    unsigned int                millis;
+    int                         r;
+    char                        src_addr_str[INET_ADDRSTRLEN] = {0};
+
+    // Debug logging
+    if (debug_level >= 3)
+    {
+        inet_ntop(AF_INET, igmp_interface->if_addr, src_addr_str, sizeof(src_addr_str));
+        logger("IGMP(%s) [%s]: sending Multicast Router Discovery advertisement\n", igmp_interface->name, src_addr_str);
+    }
+
+    r = pcap_inject(igmp_interface->pcap, igmp_interface->mrd_advertisement_packet, sizeof(igmp_interface->mrd_advertisement_packet));
+    if (r == PCAP_ERROR)
+    {
+        logger("IGMP(%s): pcap_inject failed: %s\n", igmp_interface->name, pcap_geterr(igmp_interface->pcap));
+    }
+
+    // Set the next advertisement interval
+    if (igmp_interface->mrd_initial_advertisements_remaining)
+    {
+        // Are we in startup mode?
+        igmp_interface->mrd_initial_advertisements_remaining -= 1;
+        millis = MCB_MRD_INITIAL_INTERVAL_MS;
+    }
+    else
+    {
+        millis = MCB_MRD_INTERVAL_MS;
+    }
+
+    // Set a timer for the next advertisement
+    evm_add_timer(igmp_evm, millis, igmp_send_mrd_advertisement, igmp_interface);
 }
 
 
@@ -378,7 +500,7 @@ static void igmp_activate_querier_mode(
     MCB_IP4_ADDR_CPY(igmp_interface->querier_addr, igmp_interface->if_addr);
 
     // Send the first general query
-    igmp_interface->startup_queries_remaining = igmp_interface->querier_robustness;
+    igmp_interface->startup_queries_remaining = igmp_interface->querier_robustness - 1;
     igmp_send_general_query(igmp_interface);
 }
 
@@ -536,6 +658,27 @@ static igmp_group_t * igmp_interface_find_group(
 
     // NB: The caller will set the active flag
     return first_empty_slot;
+}
+
+
+//
+// Handle an MRD solicitation
+//
+static void handle_igmp_mrd_solicitation(
+    igmp_interface_t *          igmp_interface,
+    const uint8_t *             ip_src)
+{
+    char                        src_addr_str[INET_ADDRSTRLEN] = {0};
+
+    // Debug logging
+    if (debug_level >= 3)
+    {
+        inet_ntop(AF_INET, ip_src, src_addr_str, sizeof(src_addr_str));
+        logger("IGMP(%s) [%s]: received Multicast Router Solicitation\n", igmp_interface->name, src_addr_str);
+    }
+
+    evm_del_timer(igmp_evm, igmp_send_mrd_advertisement, igmp_interface);
+    igmp_send_mrd_advertisement(igmp_interface);
 }
 
 
@@ -1125,6 +1268,15 @@ static void igmp_receive(
             handle_igmp_v3_report(igmp_interface, ip->src, (uint8_t *) igmp, packet_len);
             break;
 
+        case MCB_IGMP_MRD_SOLICITATION:
+            handle_igmp_mrd_solicitation(igmp_interface, ip->src);
+            break;
+
+        case MCB_IGMP_MRD_ADVERTISEMENT:
+        case MCB_IGMP_MRD_TERMINATION:
+            // Ignored
+            break;
+
         default:
             igmp_log(igmp_interface, ip->src, "Unknown IGMP type received");
             break;
@@ -1416,9 +1568,11 @@ void initialize_igmp(
         igmp_dump_config();
     }
 
-    // Initialize the allhosts address
+    // Initialize the special address
     haddr = htonl(MCB_IP4_ALL_SYSTEMS);
     MCB_IP4_ADDR_CPY(allhosts_addr, &haddr);
+    haddr = htonl(MCB_IP4_ALL_SNOOPERS);
+    MCB_IP4_ADDR_CPY(allsnoopers_addr, &haddr);
 
     // Finalize the interfaces and groups
     for (interface_index = 0; interface_index < igmp_interface_list_count; interface_index += 1)
@@ -1488,6 +1642,13 @@ void start_igmp(void)
     for (interface_index = 0; interface_index < igmp_interface_list_count; interface_index += 1)
     {
         igmp_interface = &igmp_interface_list[interface_index];
+
+        // Build the multicast router advertisement packet
+        igmp_build_mrd_advertisement_packet(igmp_interface);
+
+        // Send the first multicast router advertisement (no jitter)
+        igmp_interface->mrd_initial_advertisements_remaining = MCB_MRD_INITIAL_COUNT - 1;
+        igmp_send_mrd_advertisement(igmp_interface);
 
         // Build the query packets
         igmp_build_query_packets(igmp_interface);

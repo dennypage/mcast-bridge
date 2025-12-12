@@ -123,11 +123,17 @@ Things to keep in mind when choosing between static and dynamic interest:
   there is no advantage to using dynamic interest for that interface.
   Declare the interface as static to reduce overhead, both packets and
   CPU from running the dynamic protocols.
-* If the switch in use has IGMP or MLD snooping enabled, additional
-  configuration will be required for the port(s) that mcast-bridge is
-  connected to. In particular, the port(s) need to be configured as a
-  Multicast Router Port for IGMP and/or MLD. How to do this is far
-  outside the scope of this README. See your switch documentation.
+* If the switch mcast-bridge is connected to has IGMP or MLD snooping
+  enabled, additional configuration of the switch may be required:
+  * If the switch supports automatic learning of multicast router ports
+    (Multicast Router Discovery), and the feature is enabled for ports
+    that mcast-bridge is connected to, advertisements from mcast-bridge
+    will allow the switch to automatically enable multicast routing on
+    the port(s).
+  * If the switch does not support Multicast Router Discovery, the port(s)
+    that mcast-bridge is connected to will need to be manually configured
+    as multicast router ports for IGMP and/or MLD. How to do this is far
+    outside the scope of this README. See your switch documentation.
 * If dynamic interest seems to work initially, and then stops after a
   while, it is likely that a switch or router has disabled the necessary
   multicast control groups on the port(s). Check the switch or router

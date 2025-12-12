@@ -139,13 +139,13 @@
 #define MCB_MRD_INITIAL_COUNT       3
 
 // Number of milliseconds until the next MRD advertisement
-#define MCB_MRD_INTERVAL_MS         \
+#define MCB_MRD_INTERVAL_MS(S) \
     (((MCB_MRD_INTERVAL * 1000) - MCB_MRD_INTERVAL_JITTER) + \
-     (rand() % (MCB_MRD_INTERVAL_JITTER * 2)))
+     (nrand48(S) % (MCB_MRD_INTERVAL_JITTER * 2)))
 
 // Number of milliseconds until the next initial (startup) MRD advertisement
-#define MCB_MRD_INITIAL_INTERVAL_MS \
-    (rand() % ((MCB_MRD_INITIAL_INTERVAL * 1000)))
+#define MCB_MRD_INITIAL_INTERVAL_MS(S) \
+    (nrand48(S) % ((MCB_MRD_INITIAL_INTERVAL * 1000)))
 
 
 // Ethernet header structure

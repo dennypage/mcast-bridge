@@ -173,6 +173,9 @@ static uint8_t                  any_addr[MCB_IP4_ADDR_LEN] = MCB_IP4_ANY;
 static uint8_t                  allhosts_addr[MCB_IP4_ADDR_LEN];
 static uint8_t                  allsnoopers_addr[MCB_IP4_ADDR_LEN];
 
+// Random number state
+static unsigned short           random_state[3];
+
 
 
 //
@@ -360,11 +363,11 @@ static void igmp_send_mrd_advertisement(
     {
         // Are we in startup mode?
         igmp_interface->mrd_initial_advertisements_remaining -= 1;
-        millis = MCB_MRD_INITIAL_INTERVAL_MS;
+        millis = MCB_MRD_INITIAL_INTERVAL_MS(random_state);
     }
     else
     {
-        millis = MCB_MRD_INTERVAL_MS;
+        millis = MCB_MRD_INTERVAL_MS(random_state);
     }
 
     // Set a timer for the next advertisement
@@ -1630,6 +1633,7 @@ void start_igmp(void)
     igmp_interface_t *          igmp_interface;
     unsigned int                interface_index;
     pthread_t                   thread_id;
+    long                        seed;
     int                         r;
 
     // Nothing to do if there are no interfaces
@@ -1637,6 +1641,12 @@ void start_igmp(void)
     {
         return;
     }
+
+    // Seed the random number generator
+    seed = time(NULL) ^ getpid();
+    random_state[0] = 0x330e;
+    random_state[1] = seed;
+    random_state[2] = seed >> 16;
 
     // Set up the querier for each interface
     for (interface_index = 0; interface_index < igmp_interface_list_count; interface_index += 1)

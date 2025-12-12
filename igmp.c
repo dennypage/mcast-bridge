@@ -318,7 +318,7 @@ static void igmp_build_query_packets(
     igmp_query->qqic = MCB_IGMP_QUERY_INTERVAL;
 
     // Set up the group specific query packet
-    // NB: ip->dst, ip->csum, igmp->igmp_group and igmp->csum are set in send_group_specific_query()
+    // NB: ip->dst, ip->csum, igmp->igmp_group and igmp->csum are finalized in send_group_specific_query()
     igmp_query->code = MCB_IGMP_LASTMBR_INTERVAL;
     memcpy(igmp_interface->specific_query_packet, buffer, sizeof(igmp_interface->specific_query_packet));
 
@@ -1571,7 +1571,7 @@ void initialize_igmp(
         igmp_dump_config();
     }
 
-    // Initialize the special address
+    // Initialize special addresses
     haddr = htonl(MCB_IP4_ALL_SYSTEMS);
     MCB_IP4_ADDR_CPY(allhosts_addr, &haddr);
     haddr = htonl(MCB_IP4_ALL_SNOOPERS);

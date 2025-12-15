@@ -204,6 +204,17 @@ typedef struct __attribute__((packed))
     uint16_t                    value;
 } mcb_ip4_ra_opt_t;
 
+// Minimum IGMP/MRD header
+typedef struct __attribute__((packed))
+{
+    // Type
+    uint8_t                     type;
+    // Reserved (actual use depends on protocol and type)
+    uint8_t                     reserved;
+    // Checksum
+    uint16_t                    csum;
+} mcb_igmp_header_t;
+
 // IGMP v1/v2/3 common header structure
 typedef struct __attribute__((packed))
 {
@@ -346,6 +357,17 @@ typedef struct __attribute__((packed))
     // Value
     uint16_t                    value;
 } mcb_ip6_ra_t;
+
+// Minimum MLD/MRD header
+typedef struct __attribute__((packed))
+{
+    // Type
+    uint8_t                     type;
+    // Reserved (actual use depends on protocol and type)
+    uint8_t                     reserved;
+    // Checksum
+    uint16_t                    csum;
+} mcb_mld_header_t;
 
 // MLD v1 structure
 typedef struct __attribute__((packed))

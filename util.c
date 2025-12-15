@@ -92,7 +92,7 @@ uint16_t inet_csum(
 
 
 //
-// Calculate an internet v6 checksum including 10 word psuedo header
+// Calculate an internet v6 checksum including 10 word pseudo header
 //
 uint16_t inet6_csum(
     const uint16_t *            addr,
@@ -108,7 +108,7 @@ uint16_t inet6_csum(
         uint32_t                length;
         uint8_t                 zero[3];
         uint8_t                 next_header;
-    } psuedo_header;
+    } pseudo_header;
 
     // First, the 16 half words of source and destination address
     for (i = 0; i < 8; i++)
@@ -120,13 +120,13 @@ uint16_t inet6_csum(
         sum += (dst_addr)[i];
     }
 
-    // Then, the remaining 4 half words of the psuedo header
-    memset(&psuedo_header, 0, sizeof(psuedo_header));
-    psuedo_header.length = htonl(len);
-    psuedo_header.next_header = next_header;
+    // Then, the remaining 4 half words of the pseudo header
+    memset(&pseudo_header, 0, sizeof(pseudo_header));
+    pseudo_header.length = htonl(len);
+    pseudo_header.next_header = next_header;
     for (i = 0; i < 4; i++)
     {
-        sum += ((uint16_t *)&psuedo_header)[i];
+        sum += ((uint16_t *)&pseudo_header)[i];
     }
 
     // Sum all 16-bit words

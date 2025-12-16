@@ -71,7 +71,7 @@
 
 
 //
-// Intenral event manager structures
+// Internal event manager structures
 //
 typedef struct socket_event
 {

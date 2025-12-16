@@ -35,7 +35,7 @@
 
 
 //
-// Not all types and structures are consistantly available or have consistent
+// Not all types and structures are consistently available or have consistent
 // naming on various systems, so for simplicity we define our own here.
 //
 

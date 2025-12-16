@@ -40,13 +40,13 @@
 
 
 // Version number of mcast-bridge
-#define VERSION                 "1.2.0"
+#define VERSION                 "1.3.0"
 
 
 // Maximum packet size for UDP packet we support. Note that this limit
 // cannot be reached in practice with IPv4 due to the length limit of
 // IP packet. The practical limit for IPv4 is 65507. IPv6 in theory
-// allows for "jumbograms" which could arbitrarially exceed the 65535
+// allows for "jumbograms" which could arbitrarily exceed the 65535
 // byte limit, but in general practice the limit for IPv6 is 65495.
 #define MCAST_MAX_PACKET_SIZE   65535
 
@@ -146,7 +146,7 @@ extern querier_mode_type_t      igmp_querier_mode;
 extern querier_mode_type_t      mld_querier_mode;
 
 // Debug level, defined in main.c
-// 0 = No debuging
+// 0 = No debugging
 // 1 = Interface activations/deactivations
 // 2 = IGMP/MLD packet issues
 // 3 = IGMP/MLD send and receive

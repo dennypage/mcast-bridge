@@ -88,12 +88,16 @@ typedef struct draft_interface
     interface_config_type_t     outbound_configuration;
 
     unsigned int                has_ipv4_addr;
+    unsigned int                has_ipv4_addr_ll;
     unsigned int                has_ipv6_addr;
     unsigned int                has_ipv6_addr_ll;
+    unsigned int                has_ipv6_addr_ula;
 
     struct in_addr              ipv4_addr;
+    struct in_addr              ipv4_addr_ll;
     struct in6_addr             ipv6_addr;
     struct in6_addr             ipv6_addr_ll;
+    struct in6_addr             ipv6_addr_ula;
     uint8_t                     mac_addr[6];
 } draft_interface_t;
 
@@ -224,47 +228,92 @@ static draft_interface_t * add_draft_interface(
                 }
 #endif
 
-                // Check the IPv4 and IPv6 addresses
+                // Save IPv4 addresses
                 if (sa->sa_family == AF_INET)
                 {
                     sin = (struct sockaddr_in *) sa;
-                    if (interface->has_ipv4_addr)
+
+                    // Is it a link local address?
+                    if (MCB_ADDR_IS_IPV4_LL(sin->sin_addr.s_addr))
                     {
-                        // Favor global addresses over link-local ones
-                        if (MCB_ADDR_IS_IPV4_LL(sin->sin_addr.s_addr))
+                        if (interface->has_ipv4_addr_ll == 0)
                         {
-                            continue;
+                            // Save the link-local address
+                            memcpy(&interface->ipv4_addr_ll, &sin->sin_addr, sizeof(interface->ipv4_addr_ll));
+                            interface->has_ipv4_addr_ll = 1;
                         }
                     }
-
-                    interface->has_ipv4_addr = 1;
-                    memcpy(&interface->ipv4_addr, &sin->sin_addr, sizeof(interface->ipv4_addr));
+                    else
+                    {
+                        if (interface->has_ipv4_addr == 0)
+                        {
+                            // Save the routable address
+                            memcpy(&interface->ipv4_addr, &sin->sin_addr, sizeof(interface->ipv4_addr));
+                            interface->has_ipv4_addr = 1;
+                        }
+                    }
+                    continue;
                 }
-                else if (sa->sa_family == AF_INET6)
+
+                // Save IPv6 addresses
+                if (sa->sa_family == AF_INET6)
                 {
                     sin6 = (struct sockaddr_in6 *) sa;
 
-                    // Save the link-local address
-                    if (interface->has_ipv6_addr_ll == 0 && MCB_ADDR_IS_IPV6_LL(sin6->sin6_addr.s6_addr))
+                    if (MCB_ADDR_IS_IPV6_LL(sin6->sin6_addr.s6_addr))
                     {
-                        interface->has_ipv6_addr_ll = 1;
-                        memcpy(&interface->ipv6_addr_ll, &sin6->sin6_addr, sizeof(interface->ipv6_addr));
-                    }
-
-                    // Save the general use address
-                    if (interface->has_ipv6_addr)
-                    {
-                        // Favor global addresses over link-local or unique-local
-                        if (MCB_ADDR_IS_IPV6_LL(sin6->sin6_addr.s6_addr) || MCB_ADDR_IS_IPV6_ULA(sin6->sin6_addr.s6_addr))
+                        if (interface->has_ipv6_addr_ll == 0)
                         {
-                            continue;
+                            // Save the link-local address
+                            memcpy(&interface->ipv6_addr_ll, &sin6->sin6_addr, sizeof(interface->ipv6_addr));
+                            interface->has_ipv6_addr_ll = 1;
                         }
                     }
-
-                    interface->has_ipv6_addr = 1;
-                    memcpy(&interface->ipv6_addr, &sin6->sin6_addr, sizeof(interface->ipv6_addr));
+                    else if (MCB_ADDR_IS_IPV6_ULA(sin6->sin6_addr.s6_addr))
+                    {
+                        if (interface->has_ipv6_addr_ula == 0)
+                        {
+                            // Save the unique-local address
+                            memcpy(&interface->ipv6_addr_ula, &sin6->sin6_addr, sizeof(interface->ipv6_addr));
+                            interface->has_ipv6_addr_ula = 1;
+                        }
+                    }
+                    else
+                    {
+                        if (interface->has_ipv6_addr == 0)
+                        {
+                            // Save the global address
+                            memcpy(&interface->ipv6_addr, &sin6->sin6_addr, sizeof(interface->ipv6_addr));
+                            interface->has_ipv6_addr = 1;
+                        }
+                    }
                 }
             }
+        }
+    }
+
+    // If the interface does not have a routable IPv4 address, does it have a link-local?
+    if (interface->has_ipv4_addr == 0)
+    {
+        if (interface->has_ipv4_addr_ll)
+        {
+            memcpy(&interface->ipv4_addr, &interface->ipv4_addr_ll, sizeof(interface->ipv4_addr));
+            interface->has_ipv4_addr = 1;
+        }
+    }
+
+    // If the interface does not have a global IPv6 address, does it have a ULAa or link-local?
+    if (interface->has_ipv6_addr == 0)
+    {
+        if (interface->has_ipv6_addr_ula)
+        {
+            memcpy(&interface->ipv6_addr, &interface->ipv6_addr_ula, sizeof(interface->ipv6_addr));
+            interface->has_ipv6_addr = 1;
+        }
+        else if (interface->has_ipv6_addr_ll)
+        {
+            memcpy(&interface->ipv6_addr, &interface->ipv6_addr_ll, sizeof(interface->ipv6_addr));
+            interface->has_ipv6_addr = 1;
         }
     }
 

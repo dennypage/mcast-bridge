@@ -72,9 +72,9 @@
 // Minor notes regarding the implementation:
 //
 //  1. The implementation does not wait a random interval prior to sending the first
-//     Multicast Router Discovery Advertisement message, however subequent initial
+//     Multicast Router Discovery Advertisement message, however subsequent initial
 //     advertisements are sent with a random interval.
-//  2. No Multiast Router Discovery Termination messages are sent.
+//  2. No Multicast Router Discovery Termination messages are sent.
 //
 
 
@@ -678,9 +678,10 @@ static void handle_mld_mrd_solicitation(
 static void handle_mld_query(
     mld_interface_t *           mld_interface,
     const uint8_t *             ip_src,
-    const mcb_mld_v2_query_t *  query,
-    ssize_t                     query_len)
+    const uint8_t *             mld_buffer,
+    unsigned int                mld_len)
 {
+    const mcb_mld_v2_query_t *  query = (mcb_mld_v2_query_t *) mld_buffer;
     mld_group_t *               mld_group;
     unsigned int                v2_flag = 1;
     unsigned int                new_querier = 0;
@@ -688,8 +689,15 @@ static void handle_mld_query(
     char                        src_addr_str[INET6_ADDRSTRLEN] = {0};
     char                        group_addr_str[INET6_ADDRSTRLEN] = {0};
 
+    // Confirm the packet is large enough to contain a query
+    if (mld_len < sizeof(mcb_mld_t))
+    {
+        mld_log(mld_interface, ip_src, "Packet too short to contain an MLD query");
+        return;
+    }
+
     // Is this an MLDv1 query?
-    if (query_len < (ssize_t) sizeof(mcb_mld_v2_query_t))
+    if (mld_len < sizeof(mcb_mld_v2_query_t))
     {
         v2_flag = 0;
     }
@@ -732,10 +740,10 @@ static void handle_mld_query(
         // Is this a new querier?
         if (new_querier)
         {
-            // Udate the querier address
+            // Update the querier address
             MCB_IP6_ADDR_CPY(mld_interface->querier_addr, ip_src);
 
-            // If this is an MLDv1 query, assume default protcol values
+            // If this is an MLDv1 query, assume default protocol values
             if (v2_flag == 0)
             {
                 mld_interface->querier_robustness = MCB_MLD_ROBUSTNESS;
@@ -755,7 +763,7 @@ static void handle_mld_query(
         mld_interface->querier_response_interval_millis = timecode_16bit_decode(ntohs(query->response));
     }
 
-    // Remove the existing quierier timeout timer
+    // Remove the existing querier timeout timer
     evm_del_timer(mld_evm, mld_querier_timeout, mld_interface);
 
     // Set a timer to re-enable querying if the active querier times out
@@ -875,14 +883,23 @@ static void mld_leave_common(
 static void handle_mld_v1_report(
     mld_interface_t *           mld_interface,
     const uint8_t *             ip_src,
-    const uint8_t *             mcast_addr)
+    const uint8_t *             mld_buffer,
+    unsigned int                mld_len)
 {
+    mcb_mld_t *                 mld = (mcb_mld_t *) mld_buffer;
     mld_group_t *               mld_group;
     char                        src_addr_str[INET6_ADDRSTRLEN] = {0};
     char                        group_addr_str[INET6_ADDRSTRLEN] = {0};
 
+    // Confirm the packet is large enough to contain the report
+    if (mld_len < sizeof(mcb_mld_t))
+    {
+        mld_log(mld_interface, ip_src, "Packet too short to contain an MLD v1 report");
+        return;
+    }
+
     // Find the group
-    mld_group = mld_interface_find_group(mld_interface, mcast_addr);
+    mld_group = mld_interface_find_group(mld_interface, mld->group);
     if (mld_group == NULL)
     {
         return;
@@ -892,7 +909,7 @@ static void handle_mld_v1_report(
     if (debug_level >= 3)
     {
         inet_ntop(AF_INET6, ip_src, src_addr_str, sizeof(src_addr_str));
-        inet_ntop(AF_INET6, mcast_addr, group_addr_str, sizeof(group_addr_str));
+        inet_ntop(AF_INET6, mld->group, group_addr_str, sizeof(group_addr_str));
         logger("MLD(%s) [%s]: received v1 report [group %s]\n", mld_interface->name, src_addr_str, group_addr_str);
     }
 
@@ -919,6 +936,13 @@ static void handle_mld_v2_report(
     unsigned int                is_join;
     char                        src_addr_str[INET6_ADDRSTRLEN] = {0};
     char                        group_addr_str[INET6_ADDRSTRLEN] = {0};
+
+    // Confirm the packet is large enough to contain the report
+    if (mld_len < sizeof(mcb_mld_v2_report_t))
+    {
+        mld_log(mld_interface, ip_src, "Packet too short to contain an MLD v2 report");
+        return;
+    }
 
     // Get the number of records
     mld_report = (mcb_mld_v2_report_t *) mld_buffer;
@@ -1020,19 +1044,28 @@ static void handle_mld_v2_report(
 
 
 //
-// Handle an MLD leave
+// Handle an MLD done
 //
-static void handle_mld_v1_leave(
+static void handle_mld_v1_done(
     mld_interface_t *           mld_interface,
     const uint8_t *             ip_src,
-    const uint8_t *             mcast_addr)
+    const uint8_t *             mld_buffer,
+    unsigned int                mld_len)
 {
+    mcb_mld_t *                 mld = (mcb_mld_t *) mld_buffer;
     mld_group_t *               mld_group;
     char                        src_addr_str[INET6_ADDRSTRLEN] = {0};
     char                        group_addr_str[INET6_ADDRSTRLEN] = {0};
 
+    // Confirm the packet is large enough to contain the done
+    if (mld_len < sizeof(mcb_mld_t))
+    {
+        mld_log(mld_interface, ip_src, "Packet too short to contain an MLD done");
+        return;
+    }
+
     // Find the group
-    mld_group = mld_interface_find_group(mld_interface, mcast_addr);
+    mld_group = mld_interface_find_group(mld_interface, mld->group);
     if (mld_group == NULL)
     {
         return;
@@ -1042,7 +1075,7 @@ static void handle_mld_v1_leave(
     if (debug_level >= 3)
     {
         inet_ntop(AF_INET6, ip_src, src_addr_str, sizeof(src_addr_str));
-        inet_ntop(AF_INET6, mcast_addr, group_addr_str, sizeof(group_addr_str));
+        inet_ntop(AF_INET6, mld->group, group_addr_str, sizeof(group_addr_str));
         logger("MLD(%s) [%s]: received v1 done [group %s]\n", mld_interface->name, src_addr_str, group_addr_str);
     }
 
@@ -1063,7 +1096,7 @@ static void mld_receive(
     const mcb_ethernet_t *      eth;
     const mcb_ip6_t *           ip;
     const mcb_ip6_hbh_t *       hop_by_hop;
-    const mcb_mld_t *           mld;
+    const mcb_mld_header_t *    mld_header;
     unsigned int                ip_payload_len;
     uint16_t                    calculated_csum;
 
@@ -1075,7 +1108,7 @@ static void mld_receive(
     }
     packet_len = pkthdr.caplen;
 
-    // Safety check
+    // Confirm the header is large enough to contain ethernet and IPv6 headers
     if (packet_len < sizeof(mcb_ethernet_t) + sizeof(mcb_ip6_t))
     {
         mld_log(mld_interface, NULL, "Packet too short to contain an IPv6 header");
@@ -1123,7 +1156,7 @@ static void mld_receive(
     }
     packet_len = ip_payload_len;
 
-    // Confirm the header is long enough for the Hop-by-Hop header
+    // Confirm the header is large enough to contain the Hop-by-Hop header
     if (packet_len < sizeof(mcb_ip6_hbh_t))
     {
         mld_log(mld_interface, ip->src, "Packet too short to contain a Hop-by-Hop header");
@@ -1150,18 +1183,15 @@ static void mld_receive(
     packet += sizeof(mcb_ip6_hbh_t);
     packet_len -= sizeof(mcb_ip6_hbh_t);
 
-    // Confirm the packet is large enough to contain the MLD header
-    if (packet_len < sizeof(mcb_mld_t))
+    // Confirm the packet is large enough to contain the minimum ICMP6/MLD header
+    if (packet_len < sizeof(mcb_mld_header_t))
     {
-        mld_log(mld_interface, ip->src, "Packet too short to contain an MLD header");
+        mld_log(mld_interface, ip->src, "Packet too short to contain an ICMP6/MLD header");
         return;
     }
 
-    // Parse the MLD header
-    mld = (mcb_mld_t *) packet;
-
-    // Verify the MLD checksum
-    calculated_csum = inet6_csum((uint16_t *) mld, packet_len,
+    // Verify the ICMP6/MLD checksum
+    calculated_csum = inet6_csum((uint16_t *) packet, packet_len,
         (uint16_t *) ip->src, (uint16_t *) ip->dst, MCB_IP6_PROTO_ICMPV6);
     if (calculated_csum != 0)
     {
@@ -1170,28 +1200,23 @@ static void mld_receive(
     }
 
     // Process the MLD packet
-    switch (mld->type)
+    mld_header = (mcb_mld_header_t *) packet;
+    switch (mld_header->type)
     {
         case MCB_MLD_QUERY:
-            handle_mld_query(mld_interface, ip->src, (mcb_mld_v2_query_t *) mld, packet_len);
+            handle_mld_query(mld_interface, ip->src, packet, packet_len);
             break;
 
         case MCB_MLD_V1_REPORT:
-            handle_mld_v1_report(mld_interface, ip->src, mld->group);
+            handle_mld_v1_report(mld_interface, ip->src, packet, packet_len);
             break;
 
         case MCB_MLD_V1_DONE:
-            handle_mld_v1_leave(mld_interface, ip->src, mld->group);
+            handle_mld_v1_done(mld_interface, ip->src, packet, packet_len);
             break;
 
         case MCB_MLD_V2_REPORT:
-            // Confirm the packet is long enough for a v2 report
-            if (packet_len < sizeof(mcb_mld_v2_report_t))
-            {
-                mld_log(mld_interface, ip->src, "Packet too short to contain an MLD v2 report");
-                return;
-            }
-            handle_mld_v2_report(mld_interface, ip->src, (uint8_t *) mld, packet_len);
+            handle_mld_v2_report(mld_interface, ip->src, packet, packet_len);
             break;
 
         case MCB_MLD_MRD_SOLICITATION:
@@ -1558,7 +1583,7 @@ void start_mld(void)
     // Seed the random number generator
     seed = time(NULL) ^ getpid();
     random_state[0] = 0x330e;
-    random_state[1] = seed;
+    random_state[1] = ~seed;
     random_state[2] = seed >> 16;
 
     // Set up the querier for each interface
@@ -1595,7 +1620,7 @@ void start_mld(void)
             // Is querier mode enabled?
             if (mld_querier_mode)
             {
-                // Set a timer to activate as a quierier (125.5 seconds)
+                // Set a timer to activate as a querier (125.5 seconds)
                 evm_add_timer(mld_evm, 125500, mld_querier_timeout, mld_interface);
             }
         }

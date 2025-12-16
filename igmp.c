@@ -72,9 +72,9 @@
 // Minor notes regarding the implementation:
 //
 //  1. The implementation does not wait a random interval prior to sending the first
-//     Multicast Router Discovery Advertisement message, however subequent initial
+//     Multicast Router Discovery Advertisement message, however subsequent initial
 //     advertisements are sent with a random interval.
-//  2. No Multiast Router Discovery Termination messages are sent.
+//  2. No Multicast Router Discovery Termination messages are sent.
 //
 
 
@@ -151,7 +151,7 @@ typedef struct igmp_interface
     // Number of startup queries remaining
     unsigned int                startup_queries_remaining;
 
-    // Packet for muticast router advertisements
+    // Packet for multicast router advertisements
     uint8_t                     mrd_advertisement_packet[IGMP_MRD_BUFFER_SIZE];
 
     // Packets for general and group specific queries
@@ -691,9 +691,10 @@ static void handle_igmp_mrd_solicitation(
 static void handle_igmp_query(
     igmp_interface_t *          igmp_interface,
     const uint8_t *             ip_src,
-    const mcb_igmp_v3_query_t * query,
-    ssize_t                     query_len)
+    const uint8_t *             igmp_buffer,
+    unsigned int                igmp_len)
 {
+    const mcb_igmp_v3_query_t * query = (mcb_igmp_v3_query_t *) igmp_buffer;
     igmp_group_t *              igmp_group;
     unsigned int                v3_flag = 1;
     unsigned int                new_querier = 0;
@@ -701,8 +702,15 @@ static void handle_igmp_query(
     char                        src_addr_str[INET_ADDRSTRLEN] = {0};
     char                        group_addr_str[INET_ADDRSTRLEN] = {0};
 
+    // Confirm the packet is large enough to contain a query
+    if (igmp_len < sizeof(mcb_igmp_t))
+    {
+        igmp_log(igmp_interface, ip_src, "Packet too short to contain an IGMP query");
+        return;
+    }
+
     // Is this an IGMPv2/1 query?
-    if (query_len < (ssize_t) sizeof(mcb_igmp_v3_query_t))
+    if (igmp_len < sizeof(mcb_igmp_v3_query_t))
     {
         v3_flag = 0;
     }
@@ -745,10 +753,10 @@ static void handle_igmp_query(
         // Is this a new querier?
         if (new_querier)
         {
-            // Udate the querier address
+            // Update the querier address
             MCB_IP4_ADDR_CPY(igmp_interface->querier_addr, ip_src);
 
-            // If this is an IGMPv1/IGMPv2 query, assume default protcol values
+            // If this is an IGMPv1/IGMPv2 query, assume default protocol values
             if (v3_flag == 0)
             {
                 igmp_interface->querier_robustness = MCB_IGMP_ROBUSTNESS;
@@ -768,7 +776,7 @@ static void handle_igmp_query(
         igmp_interface->querier_response_interval_tenths = timecode_8bit_decode(query->code);
     }
 
-    // Remove the existing quierier timeout timer
+    // Remove the existing querier timeout timer
     evm_del_timer(igmp_evm, igmp_querier_timeout, igmp_interface);
 
     // Set a timer to re-enable querying if the active querier times out
@@ -895,15 +903,24 @@ static void igmp_leave_common(
 static void handle_igmp_v1_report(
     igmp_interface_t *          igmp_interface,
     const uint8_t *             ip_src,
-    const uint8_t *             mcast_addr)
+    const uint8_t *             igmp_buffer,
+    unsigned int                igmp_len)
 {
+    mcb_igmp_t *                igmp = (mcb_igmp_t *) igmp_buffer;
     igmp_group_t *              igmp_group;
     unsigned int                millis;
     char                        src_addr_str[INET_ADDRSTRLEN] = {0};
     char                        group_addr_str[INET_ADDRSTRLEN] = {0};
 
+    // Confirm the packet is large enough to contain the report
+    if (igmp_len < sizeof(mcb_igmp_t))
+    {
+        igmp_log(igmp_interface, ip_src, "Packet too short to contain an IGMP v1 report");
+        return;
+    }
+
     // Find the group
-    igmp_group = igmp_interface_find_group(igmp_interface, mcast_addr);
+    igmp_group = igmp_interface_find_group(igmp_interface, igmp->group);
     if (igmp_group == NULL)
     {
         return;
@@ -929,7 +946,7 @@ static void handle_igmp_v1_report(
     if (debug_level >= 3)
     {
         inet_ntop(AF_INET, ip_src, src_addr_str, sizeof(src_addr_str));
-        inet_ntop(AF_INET, mcast_addr, group_addr_str, sizeof(group_addr_str));
+        inet_ntop(AF_INET, igmp->group, group_addr_str, sizeof(group_addr_str));
         logger("IGMP(%s) [%s]: received v1 report [group %s]\n", igmp_interface->name, src_addr_str, group_addr_str);
     }
 
@@ -944,14 +961,23 @@ static void handle_igmp_v1_report(
 static void handle_igmp_v2_report(
     igmp_interface_t *          igmp_interface,
     const uint8_t *             ip_src,
-    const uint8_t *             mcast_addr)
+    const uint8_t *             igmp_buffer,
+    unsigned int                igmp_len)
 {
+    mcb_igmp_t *                igmp = (mcb_igmp_t *) igmp_buffer;
     igmp_group_t *              igmp_group;
     char                        src_addr_str[INET_ADDRSTRLEN] = {0};
     char                        group_addr_str[INET_ADDRSTRLEN] = {0};
 
+    // Confirm the packet is large enough to contain the report
+    if (igmp_len < sizeof(mcb_igmp_t))
+    {
+        igmp_log(igmp_interface, ip_src, "Packet too short to contain an IGMP v2 report");
+        return;
+    }
+
     // Find the group
-    igmp_group = igmp_interface_find_group(igmp_interface, mcast_addr);
+    igmp_group = igmp_interface_find_group(igmp_interface, igmp->group);
     if (igmp_group == NULL)
     {
         return;
@@ -961,7 +987,7 @@ static void handle_igmp_v2_report(
     if (debug_level >= 3)
     {
         inet_ntop(AF_INET, ip_src, src_addr_str, sizeof(src_addr_str));
-        inet_ntop(AF_INET, mcast_addr, group_addr_str, sizeof(group_addr_str));
+        inet_ntop(AF_INET, igmp->group, group_addr_str, sizeof(group_addr_str));
         logger("IGMP(%s) [%s]: received v2 report [group %s]\n", igmp_interface->name, src_addr_str, group_addr_str);
     }
 
@@ -988,6 +1014,13 @@ static void handle_igmp_v3_report(
     unsigned int                is_join;
     char                        src_addr_str[INET_ADDRSTRLEN] = {0};
     char                        group_addr_str[INET_ADDRSTRLEN] = {0};
+
+    // Confirm the packet is large enough to contain the report
+    if (igmp_len < sizeof(mcb_igmp_v3_report_t))
+    {
+        igmp_log(igmp_interface, ip_src, "Packet too short to contain an IGMP v3 report");
+        return;
+    }
 
     // Get the number of records
     igmp_report = (mcb_igmp_v3_report_t *) igmp_buffer;
@@ -1094,14 +1127,23 @@ static void handle_igmp_v3_report(
 static void handle_igmp_v2_leave(
     igmp_interface_t *          igmp_interface,
     const uint8_t *             ip_src,
-    const uint8_t *             mcast_addr)
+    const uint8_t *             igmp_buffer,
+    unsigned int                igmp_len)
 {
+    mcb_igmp_t *                igmp = (mcb_igmp_t *) igmp_buffer;
     igmp_group_t *              igmp_group;
     char                        src_addr_str[INET_ADDRSTRLEN] = {0};
     char                        group_addr_str[INET_ADDRSTRLEN] = {0};
 
+    // Confirm the packet is large enough to contain the leave
+    if (igmp_len < sizeof(mcb_igmp_t))
+    {
+        igmp_log(igmp_interface, ip_src, "Packet too short to contain an IGMP leave");
+        return;
+    }
+
     // Find the group
-    igmp_group = igmp_interface_find_group(igmp_interface, mcast_addr);
+    igmp_group = igmp_interface_find_group(igmp_interface, igmp->group);
     if (igmp_group == NULL)
     {
         return;
@@ -1111,7 +1153,7 @@ static void handle_igmp_v2_leave(
     if (debug_level >= 3)
     {
         inet_ntop(AF_INET, ip_src, src_addr_str, sizeof(src_addr_str));
-        inet_ntop(AF_INET, mcast_addr, group_addr_str, sizeof(group_addr_str));
+        inet_ntop(AF_INET, igmp->group, group_addr_str, sizeof(group_addr_str));
         logger("IGMP(%s) [%s]: received v2 leave [group %s]\n", igmp_interface->name, src_addr_str, group_addr_str);
     }
 
@@ -1132,7 +1174,7 @@ static void igmp_receive(
     const mcb_ethernet_t *      eth;
     const mcb_ip4_t *           ip;
     const mcb_ip4_ra_opt_t *    ip_ra;
-    const mcb_igmp_t *          igmp;
+    const mcb_igmp_header_t *   igmp_header;
     unsigned int                ip_header_len;
     unsigned int                ip_total_len;
     uint16_t                    calculated_csum;
@@ -1145,7 +1187,7 @@ static void igmp_receive(
     }
     packet_len = pkthdr.caplen;
 
-    // Safety check
+    // Confirm the header is large enough to contain ethernet and IPv4 headers
     if (packet_len < sizeof(mcb_ethernet_t) + sizeof(mcb_ip4_t))
     {
         igmp_log(igmp_interface, NULL, "Packet too short to contain an IPv4 header");
@@ -1205,7 +1247,7 @@ static void igmp_receive(
         return;
     }
 
-    // Confirm the header is long enough for the Router Alert option
+    // Confirm the header is large enough to contain the Router Alert option
     if (ip_header_len < sizeof(mcb_ip4_t) + sizeof(mcb_ip4_ra_opt_t))
     {
         igmp_log(igmp_interface, ip->src, "IP header too short to contain a Router Alert option");
@@ -1220,22 +1262,19 @@ static void igmp_receive(
         return;
     }
 
-    // Consume the IP header (inclueds the Router Alert option)
+    // Consume the IP header (includes the Router Alert option)
     packet += ip_header_len;
     packet_len -= ip_header_len;
 
-    // Confirm the packet is large enough to contain the IGMP header
-    if (packet_len < sizeof(mcb_igmp_t))
+    // Confirm the packet is large enough to contain the minimum IGMP header
+    if (packet_len < sizeof(mcb_igmp_header_t))
     {
         igmp_log(igmp_interface, ip->src, "Packet too short to contain an IGMP header");
         return;
     }
 
-    // Parse the IGMP header
-    igmp = (mcb_igmp_t *) packet;
-
     // Verify the IGMP checksum
-    calculated_csum = inet_csum((uint16_t *) igmp, packet_len);
+    calculated_csum = inet_csum((uint16_t *) packet, packet_len);
     if (calculated_csum != 0)
     {
         igmp_log(igmp_interface, ip->src, "IGMP checksum error");
@@ -1243,32 +1282,27 @@ static void igmp_receive(
     }
 
     // Process the IGMP packet
-    switch (igmp->type)
+    igmp_header = (mcb_igmp_header_t *) packet;
+    switch (igmp_header->type)
     {
         case MCB_IGMP_QUERY:
-            handle_igmp_query(igmp_interface, ip->src, (mcb_igmp_v3_query_t *) igmp, packet_len);
+            handle_igmp_query(igmp_interface, ip->src, packet, packet_len);
             break;
 
         case MCB_IGMP_V1_REPORT:
-            handle_igmp_v1_report(igmp_interface, ip->src, igmp->group);
+            handle_igmp_v1_report(igmp_interface, ip->src, packet, packet_len);
             break;
 
         case MCB_IGMP_V2_REPORT:
-            handle_igmp_v2_report(igmp_interface, ip->src, igmp->group);
+            handle_igmp_v2_report(igmp_interface, ip->src, packet, packet_len);
             break;
 
         case MCB_IGMP_V2_LEAVE:
-            handle_igmp_v2_leave(igmp_interface, ip->src, igmp->group);
+            handle_igmp_v2_leave(igmp_interface, ip->src, packet, packet_len);
             break;
 
         case MCB_IGMP_V3_REPORT:
-            // Confirm the packet is long enough for a v3 report
-            if (packet_len < sizeof(mcb_igmp_v3_report_t))
-            {
-                igmp_log(igmp_interface, ip->src, "Packet too short to contain an IGMP v3 report");
-                return;
-            }
-            handle_igmp_v3_report(igmp_interface, ip->src, (uint8_t *) igmp, packet_len);
+            handle_igmp_v3_report(igmp_interface, ip->src, packet, packet_len);
             break;
 
         case MCB_IGMP_MRD_SOLICITATION:
@@ -1682,7 +1716,7 @@ void start_igmp(void)
             // Is querier mode enabled?
             if (igmp_querier_mode)
             {
-                // Set a timer to activate as a quierier (125.5 seconds)
+                // Set a timer to activate as a querier (125.5 seconds)
                 evm_add_timer(igmp_evm, 125500, igmp_querier_timeout, igmp_interface);
             }
         }

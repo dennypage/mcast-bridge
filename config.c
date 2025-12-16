@@ -953,7 +953,7 @@ void dump_config(void)
     printf("Bridges:\n");
     for (bridge_index = 0; bridge_index < bridge_list_count; bridge_index++)
     {
-        // Port mumber and IP type
+        // Port number and IP type
         bridge = &bridge_list[bridge_index];
         family = bridge->family;
 

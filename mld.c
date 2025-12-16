@@ -1358,6 +1358,14 @@ void mld_register_interface(
         mld_interface->if_index = bridge_interface->if_index;
         MCB_ETH_ADDR_CPY(mld_interface->if_mac_addr, bridge_interface->mac_addr);
         MCB_IP6_ADDR_CPY(mld_interface->if_addr, &bridge_interface->ipv6_addr_ll);
+
+        // Safety check: Ensure the link-local address is valid
+        if (mld_interface->if_addr[0] != 0xfe || (mld_interface->if_addr[1] & 0xc0) != 0x80)
+        {
+            char ll_addr_str[INET6_ADDRSTRLEN] = {0};
+            inet_ntop(AF_INET6, mld_interface->if_addr, ll_addr_str, sizeof(ll_addr_str));
+            fatal("Interface %s has an invalid IPv6 link-local address: %s\n", mld_interface->name, ll_addr_str);
+        }
     }
 
     // Is the group already in the list for this mld interface?

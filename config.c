@@ -175,7 +175,7 @@ static draft_interface_t * add_draft_interface(
     // Safety check
     if (draft_bridge->interface_count >= MAX_INTERFACES)
     {
-        fatal("%s line %u: Maximun number of interfaces (%u) exceeded\n", config_filename, config_lineno, MAX_INTERFACES);
+        fatal("%s line %u: Maximum number of interfaces (%u) exceeded\n", config_filename, config_lineno, MAX_INTERFACES);
     }
 
     // Add a new interface to the list
@@ -265,7 +265,7 @@ static draft_interface_t * add_draft_interface(
                         if (interface->has_ipv6_addr_ll == 0)
                         {
                             // Save the link-local address
-                            memcpy(&interface->ipv6_addr_ll, &sin6->sin6_addr, sizeof(interface->ipv6_addr));
+                            memcpy(&interface->ipv6_addr_ll, &sin6->sin6_addr, sizeof(interface->ipv6_addr_ll));
                             interface->has_ipv6_addr_ll = 1;
                         }
                     }
@@ -274,7 +274,7 @@ static draft_interface_t * add_draft_interface(
                         if (interface->has_ipv6_addr_ula == 0)
                         {
                             // Save the unique-local address
-                            memcpy(&interface->ipv6_addr_ula, &sin6->sin6_addr, sizeof(interface->ipv6_addr));
+                            memcpy(&interface->ipv6_addr_ula, &sin6->sin6_addr, sizeof(interface->ipv6_addr_ula));
                             interface->has_ipv6_addr_ula = 1;
                         }
                     }
@@ -607,7 +607,7 @@ static void add_bridge(
 static char * trim_leading_whitespace(
     char *                      str)
 {
-    while (isspace(*str))
+    while (*str && isspace((unsigned char) *str))
     {
         str += 1;
     }
@@ -623,11 +623,18 @@ static void trim_trailing_whitespace(
     char *                      str)
 {
     char *                      end;
+    unsigned int                len;
 
-    end = str + strlen(str) - 1;
-    while (isspace(*end))
+    len = strlen(str);
+    if (len == 0)
     {
-        *end = 0;
+        return;
+    }
+
+    end = str + len - 1;
+    while (end >= str && isspace((unsigned char) *end))
+    {
+        *end = '\0';
         end -= 1;
     }
 }
@@ -647,24 +654,28 @@ static char * split_keyvalue(
     {
         fatal("%s line %u: Syntax error - missing assignment\n", config_filename, config_lineno);
     }
-    *value = 0;
+    *value = '\0';
+
+    // Trim the key and ensure it is not empty
+    trim_trailing_whitespace(line);
+    if (*line == '\0')
+    {
+        fatal("%s line %u: Syntax error - missing key\n", config_filename, config_lineno);
+    }
 
     // Trim the value and ensure it is not empty
     value = trim_leading_whitespace(value + 1);
-    if (*value == 0)
+    if (*value == '\0')
     {
         fatal("%s line %u: Syntax error - missing value\n", config_filename, config_lineno);
     }
-
-    // Trim the key
-    trim_trailing_whitespace(line);
 
     return (value);
 }
 
 
 //
-// Convert a comma separated list of strings into a sorted array
+// Convert a comma separated list of strings into an array of strings
 // NB: The array MUST be at least MAX_LIST_ARRAY in size
 //
 static unsigned int split_comma_list(
@@ -686,18 +697,18 @@ static unsigned int split_comma_list(
             }
 
             // Terminate the current element
-            *str = 0;
-            trim_trailing_whitespace(str);
+            *str = '\0';
+            trim_trailing_whitespace(array[index]);
 
             // Ensure the current element is not empty
-            if (array[index] == str)
+            if (*array[index] == '\0')
             {
                 fatal("%s line %u: Invalid list - empty element\n", config_filename, config_lineno);
             }
 
             // Insure the next element is not empty
             str = trim_leading_whitespace(str + 1);
-            if (*str == 0)
+            if (*str == '\0')
             {
                 fatal("%s line %u: Invalid list - empty element\n", config_filename, config_lineno);
             }
@@ -734,7 +745,7 @@ static char * read_line(
         line = trim_leading_whitespace(buffer);
 
         // Ignore empty and comment lines
-        if (*line == 0 || *line == '#')
+        if (*line == '\0' || *line == '#')
         {
             continue;
         }
@@ -763,7 +774,7 @@ void read_config(void)
     draft_bridge_t              draft_bridge;
     draft_interface_t *         draft_interface;
     unsigned long               lport;
-    unsigned int                offset;
+    unsigned int                len;
     int                         r;
 
     // Open the config file
@@ -787,12 +798,12 @@ void read_config(void)
         line = trim_leading_whitespace(line + 1);
 
         // Ensure the section name (port number) is terminated
-        offset = strlen(line) - 1;
-        if (line[offset] != ']')
+        len = strlen(line);
+        if (len == 0 || line[len - 1] != ']')
         {
             fatal("%s line %u: Syntax error\n", config_filename, config_lineno);
         }
-        line[offset] = 0;
+        line[len - 1] = '\0';
 
         // Ignore trailing whitespace
         trim_trailing_whitespace(line);
@@ -829,7 +840,7 @@ void read_config(void)
             {
                 // Store the multicast address
                 r = inet_pton(AF_INET, value, &draft_bridge.ipv4_mcast_addr);
-                if (r == 0)
+                if (r <= 0)
                 {
                     fatal("%s line %u: Invalid IPv4 address \"%s\"\n", config_filename, config_lineno, value);
                 }
@@ -839,7 +850,7 @@ void read_config(void)
                 }
                 if (MCB_ADDR_IS_IPV4_MC_LOCAL(ntohl(draft_bridge.ipv4_mcast_addr.s_addr)))
                 {
-                    fatal("%s line %u: Multicast group address \"%s\" is link local (224.0.0.0/8) and cannot be bridged\n", config_filename, config_lineno, value);
+                    fatal("%s line %u: Multicast group address \"%s\" is link local (224.0.0.0/24) and cannot be bridged\n", config_filename, config_lineno, value);
                 }
                 draft_bridge.has_ipv4_mcast_addr = 1;
             }
@@ -847,7 +858,7 @@ void read_config(void)
             {
                 // Store the multicast address
                 r = inet_pton(AF_INET6, value, &draft_bridge.ipv6_mcast_addr);
-                if (r == 0)
+                if (r <= 0)
                 {
                     fatal("%s line %u: Invalid IPv6 address \"%s\"\n", config_filename, config_lineno, value);
                 }
@@ -967,7 +978,7 @@ void read_config(void)
 //
 // Map an interface configuration type to a string
 //
-char * interface_config_type_to_string(
+const char * interface_config_type_to_string(
     interface_config_type_t  interface_config_type)
 {
     switch (interface_config_type)
@@ -1009,14 +1020,14 @@ void dump_config(void)
         // Multicast address
         if (family == AF_INET)
         {
-            if (inet_ntop(AF_INET, &bridge->dst_addr.sin.sin_addr, addr_str, bridge->dst_addr_len) == NULL)
+            if (inet_ntop(AF_INET, &bridge->dst_addr.sin.sin_addr, addr_str, sizeof(addr_str)) == NULL)
             {
                 fatal("inet_ntop failed for IPv4 address: %s\n", strerror(errno));
             }
         }
         else
         {
-            if (inet_ntop(AF_INET6, &bridge->dst_addr.sin6.sin6_addr, addr_str, bridge->dst_addr_len) == NULL)
+            if (inet_ntop(AF_INET6, &bridge->dst_addr.sin6.sin6_addr, addr_str, sizeof(addr_str)) == NULL)
             {
                 fatal("inet_ntop failed for IPv6 address: %s\n", strerror(errno));
             }

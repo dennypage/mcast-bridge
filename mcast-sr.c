@@ -425,7 +425,7 @@ static void parse_args(
         if (ip_version == 4)
         {
             r = inet_pton(AF_INET, argv[optind], &ipv4_group_sockaddr_in.sin_addr);
-            if (r == 0 || IN_MULTICAST(ntohl(ipv4_group_sockaddr_in.sin_addr.s_addr)) == 0)
+            if (r <= 0 || IN_MULTICAST(ntohl(ipv4_group_sockaddr_in.sin_addr.s_addr)) == 0)
             {
                 fatal("Invalid IPv4 multicast group address \"%s\"\n", argv[optind]);
             }
@@ -433,7 +433,7 @@ static void parse_args(
         else
         {
             r = inet_pton(AF_INET6, argv[optind], &ipv6_group_sockaddr_in6.sin6_addr);
-            if (r == 0 || IN6_IS_ADDR_MULTICAST(&ipv6_group_sockaddr_in6.sin6_addr) == 0)
+            if (r <= 0 || IN6_IS_ADDR_MULTICAST(&ipv6_group_sockaddr_in6.sin6_addr) == 0)
             {
                 fatal("Invalid IPv6 address \"%s\"\n", argv[optind]);
             }

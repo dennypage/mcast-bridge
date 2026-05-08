@@ -180,7 +180,7 @@ extern void read_config(void);
 extern void dump_config(void);
 
 // Map an interface configuration type to a string
-char * interface_config_type_to_string(
+const char * interface_config_type_to_string(
     interface_config_type_t     interface_config_type);
 
 // Initialize the socket infrastructure

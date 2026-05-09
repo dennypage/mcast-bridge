@@ -182,10 +182,10 @@ static void interface_bind_ipv6(
 #endif
 
     // Set the ttl
-    r = setsockopt(sock, IPPROTO_IPV6, IPV6_UNICAST_HOPS, &ttl, sizeof(ttl));
+    r = setsockopt(sock, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &ttl, sizeof(ttl));
     if (r == -1)
     {
-        fatal("setsockopt (IPV6_UNICAST_HOPS) for IPv6 on %s failed: %s\n", bridge_interface->name, strerror(errno));
+        fatal("setsockopt (IPV6_MULTICAST_HOPS) for IPv6 on %s failed: %s\n", bridge_interface->name, strerror(errno));
     }
 
     // Set the outbound interface

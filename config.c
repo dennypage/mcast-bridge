@@ -1049,14 +1049,14 @@ void dump_config(void)
             // Convert the IP address
             if (family == AF_INET)
             {
-                if (inet_ntop(AF_INET, &interface->ipv4_addr.s_addr, addr_str, sizeof(addr_str)) == NULL)
+                if (inet_ntop(AF_INET, &interface->ipv4_addr, addr_str, sizeof(addr_str)) == NULL)
                 {
                     fatal("inet_ntop failed for IPv4 address: %s\n", strerror(errno));
                 }
             }
             else
             {
-                if (inet_ntop(AF_INET6, &interface->ipv6_addr.s6_addr, addr_str, sizeof(addr_str)) == NULL)
+                if (inet_ntop(AF_INET6, &interface->ipv6_addr, addr_str, sizeof(addr_str)) == NULL)
                 {
                     fatal("inet_ntop failed for IPv6 address: %s\n", strerror(errno));
                 }
@@ -1079,14 +1079,14 @@ void dump_config(void)
             // Convert the IP address
             if (family == AF_INET)
             {
-                if (inet_ntop(AF_INET, &interface->ipv4_addr.s_addr, addr_str, sizeof(addr_str)) == NULL)
+                if (inet_ntop(AF_INET, &interface->ipv4_addr, addr_str, sizeof(addr_str)) == NULL)
                 {
                     fatal("inet_ntop failed for IPv4 address: %s\n", strerror(errno));
                 }
             }
             else
             {
-                if (inet_ntop(AF_INET6, &interface->ipv6_addr.s6_addr, addr_str, sizeof(addr_str)) == NULL)
+                if (inet_ntop(AF_INET6, &interface->ipv6_addr, addr_str, sizeof(addr_str)) == NULL)
                 {
                     fatal("inet_ntop failed for IPv6 address: %s\n", strerror(errno));
                 }

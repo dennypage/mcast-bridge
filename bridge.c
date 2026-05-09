@@ -107,11 +107,11 @@ static void bridge_receive(
     {
         if (bridge->family == AF_INET)
         {
-            inet_ntop(AF_INET, &src_addr.sin.sin_addr, src_addr_str, sizeof(src_addr_str));
+            inet_ntop(AF_INET, &src_addr, src_addr_str, sizeof(src_addr_str));
         }
         else
         {
-            inet_ntop(AF_INET6, &src_addr.sin6.sin6_addr, src_addr_str, sizeof(src_addr_str));
+            inet_ntop(AF_INET6, &src_addr, src_addr_str, sizeof(src_addr_str));
         }
     }
 

@@ -72,14 +72,14 @@ consider an active subscriber to always be present on the interface.
 
 ```
 [7500]
-    ipv4_address = 239.0.75.0
-    ipv6_address = ff05:0:0:0:0:0:0:7500
+    ipv4-address = 239.0.75.0
+    ipv6-address = ff05:0:0:0:0:0:0:7500
 
-    inbound_interfaces = igc0, igc1, igc2
-    outbound_interfaces = igc0, igc1, igc2
+    inbound-interfaces = igc0, igc1, igc2
+    outbound-interfaces = igc0, igc1, igc2
 
-    static_inbound_interfaces = igc1
-    static_outbound_interfaces = igc2
+    static-inbound-interfaces = igc1
+    static-outbound-interfaces = igc2
 ```
 
 #### The following properties may be defined in an bridge section:

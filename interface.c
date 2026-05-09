@@ -78,7 +78,7 @@ static void interface_bind_ipv4(
 
     // Set interface specific binding if available
 #if defined(SO_BINDTODEVICE)
-    r = setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, bridge_interface->name, strlen(bridge_interface->name));
+    r = setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, bridge_interface->name, strlen(bridge_interface->name) + 1);
     if (r == -1)
     {
         fatal("setsockopt (SO_BINDTODEVICE) for IPv4 on %s failed: %s\n", bridge_interface->name, strerror(errno));

@@ -84,10 +84,10 @@ static void interface_bind_ipv4(
         fatal("setsockopt (SO_BINDTODEVICE) for IPv4 on %s failed: %s\n", bridge_interface->name, strerror(errno));
     }
 #elif defined(IP_BOUND_IF)
-    r = setsockopt(sock, IPPROTO_IP, IP_BOUND_IF, &bridge_interface->if_index, sizeof(interface->if_index));
+    r = setsockopt(sock, IPPROTO_IP, IP_BOUND_IF, &bridge_interface->if_index, sizeof(bridge_interface->if_index));
     if (r == -1)
     {
-        fatal("setsockopt (IP_BOUND_IF) for IPv4 on %s failed: %s\n", interface->name, strerror(errno));
+        fatal("setsockopt (IP_BOUND_IF) for IPv4 on %s failed: %s\n", bridge_interface->name, strerror(errno));
     }
 #endif
 
@@ -174,10 +174,10 @@ static void interface_bind_ipv6(
         fatal("setsockopt (SO_BINDTODEVICE) for IPv6 on %s failed: %s\n", bridge_interface->name, strerror(errno));
     }
 #elif defined(IPV6_BOUND_IF)
-    r = setsockopt(sock, IPPROTO_IPV6, IPV6_BOUND_IF, &bridge_interface->if_index, sizeof(interface->if_index));
+    r = setsockopt(sock, IPPROTO_IPV6, IPV6_BOUND_IF, &bridge_interface->if_index, sizeof(bridge_interface->if_index));
     if (r == -1)
     {
-        fatal("setsockopt (IPV6_BOUND_IF) for IPv6 on %s failed: %s\n", interface->name, strerror(errno));
+        fatal("setsockopt (IPV6_BOUND_IF) for IPv6 on %s failed: %s\n", bridge_interface->name, strerror(errno));
     }
 #endif
 

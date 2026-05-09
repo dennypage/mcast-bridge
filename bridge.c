@@ -90,9 +90,12 @@ static void bridge_receive(
                             &src_addr.sa, &src_addr_len);
     if (bytes == -1)
     {
-        logger("Bridge(%s/%u): recvfrom error on interface %s: %s\n",
-            AF_FAMILY_TO_STRING(bridge->family), bridge->port,
-            bridge_interface->name, strerror(errno));
+        if (errno != EAGAIN && errno != EWOULDBLOCK)
+        {
+            logger("Bridge(%s/%u): recvfrom error on interface %s: %s\n",
+                AF_FAMILY_TO_STRING(bridge->family), bridge->port,
+                bridge_interface->name, strerror(errno));
+        }
         return;
     }
 
@@ -107,11 +110,11 @@ static void bridge_receive(
     {
         if (bridge->family == AF_INET)
         {
-            inet_ntop(AF_INET, &src_addr, src_addr_str, sizeof(src_addr_str));
+            inet_ntop(AF_INET, &src_addr.sin.sin_addr, src_addr_str, sizeof(src_addr_str));
         }
         else
         {
-            inet_ntop(AF_INET6, &src_addr, src_addr_str, sizeof(src_addr_str));
+            inet_ntop(AF_INET6, &src_addr.sin6.sin6_addr, src_addr_str, sizeof(src_addr_str));
         }
     }
 
@@ -228,7 +231,7 @@ void start_bridges(void)
         r = pthread_create(&thread_id, NULL, &bridge_thread, local_storage);
         if (r != 0)
         {
-            fatal("cannot create bridge thread: %s\n", strerror(errno));
+            fatal("cannot create bridge thread: %s\n", strerror(r));
         }
     }
 }

@@ -655,7 +655,8 @@ static igmp_group_t * igmp_interface_find_group(
         igmp_interface->group_list_count += 1;
     }
 
-    // Set the address
+    // Clear the empty slot and set the address
+    memset(first_empty_slot, 0, sizeof(*first_empty_slot));
     first_empty_slot->igmp_interface = igmp_interface;
     MCB_IP4_ADDR_CPY(first_empty_slot->mcast_addr, mcast_addr);
 
@@ -1098,7 +1099,7 @@ static void handle_igmp_v3_report(
             case MCB_REC_BLOCK_OLD_SOURCES:
                 if (group_record->num_srcs)
                 {
-                    return;
+                    continue;
                 }
                 // otherwise is leave
                 break;
@@ -1540,7 +1541,7 @@ static void igmp_dump_config()
     igmp_group_t *              igmp_group;
     unsigned int                interface_index;
     unsigned int                group_index;
-    char                        addr_str[INET_ADDRSTRLEN];
+    char                        addr_str[INET_ADDRSTRLEN] = "[unknown]";
 
     printf("IGMP:\n");
     printf("  Querier Mode: ");

@@ -190,7 +190,7 @@ static void mld_log(
     const uint8_t *             addr,
     const char *                msg)
 {
-    char                        addr_str[INET6_ADDRSTRLEN] = {0};
+    char                        addr_str[INET6_ADDRSTRLEN] = "[unknown]";
 
     // Minimum debug log level
     if (debug_level < 2)
@@ -642,7 +642,8 @@ static mld_group_t * mld_interface_find_group(
         mld_interface->group_list_count += 1;
     }
 
-    // Set the address
+    // Clear the empty slot and set the address
+    memset(first_empty_slot, 0, sizeof(*first_empty_slot));
     first_empty_slot->mld_interface = mld_interface;
     MCB_IP6_ADDR_CPY(first_empty_slot->mcast_addr, mcast_addr);
 
@@ -1020,7 +1021,7 @@ static void handle_mld_v2_report(
             case MCB_REC_BLOCK_OLD_SOURCES:
                 if (group_record->num_srcs)
                 {
-                    return;
+                    continue;
                 }
                 // otherwise is leave
                 break;

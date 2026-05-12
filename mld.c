@@ -1454,7 +1454,7 @@ static void * mld_thread(
 //
 // Dump the MLD configuration
 //
-static void mld_dump_config()
+static void mld_dump_config(void)
 {
     mld_interface_t *           mld_interface;
     mld_group_t *               mld_group;

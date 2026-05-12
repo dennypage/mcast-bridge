@@ -1535,7 +1535,7 @@ static void * igmp_thread(
 //
 // Dump the IGMP configuration
 //
-static void igmp_dump_config()
+static void igmp_dump_config(void)
 {
     igmp_interface_t *          igmp_interface;
     igmp_group_t *              igmp_group;

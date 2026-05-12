@@ -157,7 +157,7 @@ static int bind_ipv4(
     r = setsockopt(sock, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));
     if (r == -1)
     {
-        fatal("setsockopt (IPV6_MULTICAST_IF) for IPv6 on %s failed: %s\n", interface_name, strerror(errno));
+        fatal("setsockopt (IP_MULTICAST_TTL) for IPv6 on %s failed: %s\n", interface_name, strerror(errno));
     }
 
     // Bind the socket

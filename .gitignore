@@ -1,0 +1,4 @@
+*.o
+mcast-bridge
+mcast-sr
+mcast-bridge.conf

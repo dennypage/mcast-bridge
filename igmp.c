@@ -186,7 +186,7 @@ static void igmp_log(
     const uint8_t *             addr,
     const char *                msg)
 {
-    char                        addr_str[INET_ADDRSTRLEN] = {0};
+    char                        addr_str[INET_ADDRSTRLEN] = "unknown";
 
     // Minimum debug log level
     if (debug_level < 2)
@@ -343,7 +343,7 @@ static void igmp_send_mrd_advertisement(
     igmp_interface_t *          igmp_interface = (igmp_interface_t *) arg;
     unsigned int                millis;
     int                         r;
-    char                        src_addr_str[INET_ADDRSTRLEN] = {0};
+    char                        src_addr_str[INET_ADDRSTRLEN] = "unknown";
 
     // Debug logging
     if (debug_level >= 3)
@@ -384,7 +384,7 @@ static void igmp_send_general_query(
     igmp_interface_t *          igmp_interface = (igmp_interface_t *) arg;
     unsigned int                millis;
     int                         r;
-    char                        src_addr_str[INET_ADDRSTRLEN] = {0};
+    char                        src_addr_str[INET_ADDRSTRLEN] = "unknown";
 
     // Debug logging
     if (debug_level >= 3)
@@ -427,8 +427,8 @@ static void send_group_specific_query(
     mcb_ip4_t *                 ip;
     mcb_igmp_v3_query_t *       igmp_query;
     int                         r;
-    char                        src_addr_str[INET_ADDRSTRLEN] = {0};
-    char                        group_addr_str[INET_ADDRSTRLEN] = {0};
+    char                        src_addr_str[INET_ADDRSTRLEN] = "unknown";
+    char                        group_addr_str[INET_ADDRSTRLEN] = "unknown";
 
     // Debug logging
     if (debug_level >= 3)
@@ -672,7 +672,7 @@ static void handle_igmp_mrd_solicitation(
     igmp_interface_t *          igmp_interface,
     const uint8_t *             ip_src)
 {
-    char                        src_addr_str[INET_ADDRSTRLEN] = {0};
+    char                        src_addr_str[INET_ADDRSTRLEN] = "unknown";
 
     // Debug logging
     if (debug_level >= 3)
@@ -700,8 +700,8 @@ static void handle_igmp_query(
     unsigned int                v3_flag = 1;
     unsigned int                new_querier = 0;
     unsigned int                millis;
-    char                        src_addr_str[INET_ADDRSTRLEN] = {0};
-    char                        group_addr_str[INET_ADDRSTRLEN] = {0};
+    char                        src_addr_str[INET_ADDRSTRLEN] = "unknown";
+    char                        group_addr_str[INET_ADDRSTRLEN] = "unknown";
 
     // Confirm the packet is large enough to contain a query
     if (igmp_len < sizeof(mcb_igmp_t))
@@ -910,8 +910,8 @@ static void handle_igmp_v1_report(
     mcb_igmp_t *                igmp = (mcb_igmp_t *) igmp_buffer;
     igmp_group_t *              igmp_group;
     unsigned int                millis;
-    char                        src_addr_str[INET_ADDRSTRLEN] = {0};
-    char                        group_addr_str[INET_ADDRSTRLEN] = {0};
+    char                        src_addr_str[INET_ADDRSTRLEN] = "unknown";
+    char                        group_addr_str[INET_ADDRSTRLEN] = "unknown";
 
     // Confirm the packet is large enough to contain the report
     if (igmp_len < sizeof(mcb_igmp_t))
@@ -967,8 +967,8 @@ static void handle_igmp_v2_report(
 {
     mcb_igmp_t *                igmp = (mcb_igmp_t *) igmp_buffer;
     igmp_group_t *              igmp_group;
-    char                        src_addr_str[INET_ADDRSTRLEN] = {0};
-    char                        group_addr_str[INET_ADDRSTRLEN] = {0};
+    char                        src_addr_str[INET_ADDRSTRLEN] = "unknown";
+    char                        group_addr_str[INET_ADDRSTRLEN] = "unknown";
 
     // Confirm the packet is large enough to contain the report
     if (igmp_len < sizeof(mcb_igmp_t))
@@ -1013,8 +1013,8 @@ static void handle_igmp_v3_report(
     unsigned int                record_len;
     unsigned int                num_srcs;
     unsigned int                is_join;
-    char                        src_addr_str[INET_ADDRSTRLEN] = {0};
-    char                        group_addr_str[INET_ADDRSTRLEN] = {0};
+    char                        src_addr_str[INET_ADDRSTRLEN] = "unknown";
+    char                        group_addr_str[INET_ADDRSTRLEN] = "unknown";
 
     // Confirm the packet is large enough to contain the report
     if (igmp_len < sizeof(mcb_igmp_v3_report_t))
@@ -1133,8 +1133,8 @@ static void handle_igmp_v2_leave(
 {
     mcb_igmp_t *                igmp = (mcb_igmp_t *) igmp_buffer;
     igmp_group_t *              igmp_group;
-    char                        src_addr_str[INET_ADDRSTRLEN] = {0};
-    char                        group_addr_str[INET_ADDRSTRLEN] = {0};
+    char                        src_addr_str[INET_ADDRSTRLEN] = "unknown";
+    char                        group_addr_str[INET_ADDRSTRLEN] = "unknown";
 
     // Confirm the packet is large enough to contain the leave
     if (igmp_len < sizeof(mcb_igmp_t))
@@ -1541,7 +1541,7 @@ static void igmp_dump_config(void)
     igmp_group_t *              igmp_group;
     unsigned int                interface_index;
     unsigned int                group_index;
-    char                        addr_str[INET_ADDRSTRLEN] = "[unknown]";
+    char                        addr_str[INET_ADDRSTRLEN];
 
     printf("IGMP:\n");
     printf("  Querier Mode: ");
@@ -1564,18 +1564,25 @@ static void igmp_dump_config(void)
     for (interface_index = 0; interface_index < igmp_interface_list_count; interface_index += 1)
     {
         igmp_interface = &igmp_interface_list[interface_index];
-
+        if (inet_ntop(AF_INET, igmp_interface->if_addr, addr_str, sizeof(addr_str)) == NULL)
+        {
+            strcpy(addr_str, "[unknown]");
+        }
         printf("  Interface: %s\n", igmp_interface->name);
         printf("    if index: %d\n", igmp_interface->if_index);
         printf("    hw-addr: %02x:%02x:%02x:%02x:%02x:%02x\n",
                         igmp_interface->if_mac_addr[0], igmp_interface->if_mac_addr[1], igmp_interface->if_mac_addr[2],
                         igmp_interface->if_mac_addr[3], igmp_interface->if_mac_addr[4], igmp_interface->if_mac_addr[5]);
-        printf("    address: %s\n", inet_ntop(AF_INET, igmp_interface->if_addr, addr_str, sizeof(addr_str)));
+        printf("    address: %s\n", addr_str);
         printf("    groups:\n");
         for (group_index = 0; group_index < igmp_interface->group_list_count; group_index += 1)
         {
             igmp_group = &igmp_interface->group_list[group_index];
-            printf("      %s\n", inet_ntop(AF_INET, igmp_group->mcast_addr, addr_str, sizeof(addr_str)));
+            if (inet_ntop(AF_INET, igmp_group->mcast_addr, addr_str, sizeof(addr_str)) == NULL)
+            {
+                strcpy(addr_str, "[unknown]");
+            }
+            printf("      %s\n", addr_str);
         }
     }
 }
@@ -1727,6 +1734,6 @@ void start_igmp(void)
     r = pthread_create(&thread_id, NULL, &igmp_thread, NULL);
     if (r != 0)
     {
-        fatal("cannot create IGMP thread: %s\n", strerror(errno));
+        fatal("cannot create IGMP thread: %s\n", strerror(r));
     }
 }

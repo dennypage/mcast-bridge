@@ -190,7 +190,7 @@ static void mld_log(
     const uint8_t *             addr,
     const char *                msg)
 {
-    char                        addr_str[INET6_ADDRSTRLEN] = "[unknown]";
+    char                        addr_str[INET6_ADDRSTRLEN] = "unknown";
 
     // Minimum debug log level
     if (debug_level < 2)
@@ -351,7 +351,7 @@ static void mld_send_mrd_advertisement(
     mld_interface_t *           mld_interface = (mld_interface_t *) arg;
     unsigned int                millis;
     int                         r;
-    char                        src_addr_str[INET6_ADDRSTRLEN] = {0};
+    char                        src_addr_str[INET6_ADDRSTRLEN] = "unknown";
 
     // Debug logging
     if (debug_level >= 3)
@@ -392,7 +392,7 @@ static void mld_send_general_query(
     mld_interface_t *           mld_interface = (mld_interface_t *) arg;
     unsigned int                millis;
     int                         r;
-    char                        src_addr_str[INET6_ADDRSTRLEN] = {0};
+    char                        src_addr_str[INET6_ADDRSTRLEN] = "unknown";
 
     // Debug logging
     if (debug_level >= 3)
@@ -435,8 +435,8 @@ static void send_group_specific_query(
     mcb_ip6_t *                 ip;
     mcb_mld_v2_query_t *        mld_query;
     int                         r;
-    char                        src_addr_str[INET6_ADDRSTRLEN] = {0};
-    char                        group_addr_str[INET6_ADDRSTRLEN] = {0};
+    char                        src_addr_str[INET6_ADDRSTRLEN] = "unknown";
+    char                        group_addr_str[INET6_ADDRSTRLEN] = "unknown";
 
     // Debug logging
     if (debug_level >= 3)
@@ -659,7 +659,7 @@ static void handle_mld_mrd_solicitation(
     mld_interface_t *           mld_interface,
     const uint8_t *             ip_src)
 {
-    char                        src_addr_str[INET6_ADDRSTRLEN] = {0};
+    char                        src_addr_str[INET6_ADDRSTRLEN] = "unknown";
 
     // Debug logging
     if (debug_level >= 3)
@@ -687,8 +687,8 @@ static void handle_mld_query(
     unsigned int                v2_flag = 1;
     unsigned int                new_querier = 0;
     unsigned int                millis;
-    char                        src_addr_str[INET6_ADDRSTRLEN] = {0};
-    char                        group_addr_str[INET6_ADDRSTRLEN] = {0};
+    char                        src_addr_str[INET6_ADDRSTRLEN] = "unknown";
+    char                        group_addr_str[INET6_ADDRSTRLEN] = "unknown";
 
     // Confirm the packet is large enough to contain a query
     if (mld_len < sizeof(mcb_mld_t))
@@ -889,8 +889,8 @@ static void handle_mld_v1_report(
 {
     mcb_mld_t *                 mld = (mcb_mld_t *) mld_buffer;
     mld_group_t *               mld_group;
-    char                        src_addr_str[INET6_ADDRSTRLEN] = {0};
-    char                        group_addr_str[INET6_ADDRSTRLEN] = {0};
+    char                        src_addr_str[INET6_ADDRSTRLEN] = "unknown";
+    char                        group_addr_str[INET6_ADDRSTRLEN] = "unknown";
 
     // Confirm the packet is large enough to contain the report
     if (mld_len < sizeof(mcb_mld_t))
@@ -935,8 +935,8 @@ static void handle_mld_v2_report(
     unsigned int                record_len;
     unsigned int                num_srcs;
     unsigned int                is_join;
-    char                        src_addr_str[INET6_ADDRSTRLEN] = {0};
-    char                        group_addr_str[INET6_ADDRSTRLEN] = {0};
+    char                        src_addr_str[INET6_ADDRSTRLEN] = "unknown";
+    char                        group_addr_str[INET6_ADDRSTRLEN] = "unknown";
 
     // Confirm the packet is large enough to contain the report
     if (mld_len < sizeof(mcb_mld_v2_report_t))
@@ -1055,8 +1055,8 @@ static void handle_mld_v1_done(
 {
     mcb_mld_t *                 mld = (mcb_mld_t *) mld_buffer;
     mld_group_t *               mld_group;
-    char                        src_addr_str[INET6_ADDRSTRLEN] = {0};
-    char                        group_addr_str[INET6_ADDRSTRLEN] = {0};
+    char                        src_addr_str[INET6_ADDRSTRLEN] = "unknown";
+    char                        group_addr_str[INET6_ADDRSTRLEN] = "unknown";
 
     // Confirm the packet is large enough to contain the done
     if (mld_len < sizeof(mcb_mld_t))
@@ -1363,7 +1363,7 @@ void mld_register_interface(
         // Safety check: Ensure the link-local address is valid
         if (mld_interface->if_addr[0] != 0xfe || (mld_interface->if_addr[1] & 0xc0) != 0x80)
         {
-            char ll_addr_str[INET6_ADDRSTRLEN] = {0};
+            char ll_addr_str[INET6_ADDRSTRLEN] = "unknown";
             inet_ntop(AF_INET6, mld_interface->if_addr, ll_addr_str, sizeof(ll_addr_str));
             fatal("Interface %s has an invalid IPv6 link-local address: %s\n", mld_interface->name, ll_addr_str);
         }
@@ -1483,18 +1483,26 @@ static void mld_dump_config(void)
     for (interface_index = 0; interface_index < mld_interface_list_count; interface_index += 1)
     {
         mld_interface = &mld_interface_list[interface_index];
+        if (inet_ntop(AF_INET6, mld_interface->if_addr, addr_str, sizeof(addr_str)) == NULL)
+        {
+            strcpy(addr_str, "[unknown]");
+        }
 
         printf("  Interface: %s\n", mld_interface->name);
         printf("    if index: %d\n", mld_interface->if_index);
         printf("    hw-addr: %02x:%02x:%02x:%02x:%02x:%02x\n",
                         mld_interface->if_mac_addr[0], mld_interface->if_mac_addr[1], mld_interface->if_mac_addr[2],
                         mld_interface->if_mac_addr[3], mld_interface->if_mac_addr[4], mld_interface->if_mac_addr[5]);
-        printf("    address: %s\n", inet_ntop(AF_INET6, mld_interface->if_addr, addr_str, sizeof(addr_str)));
+        printf("    address: %s\n", addr_str);
         printf("    groups:\n");
         for (group_index = 0; group_index < mld_interface->group_list_count; group_index += 1)
         {
             mld_group = &mld_interface->group_list[group_index];
-            printf("      %s\n", inet_ntop(AF_INET6, mld_group->mcast_addr, addr_str, sizeof(addr_str)));
+            if (inet_ntop(AF_INET6, mld_group->mcast_addr, addr_str, sizeof(addr_str)) == NULL)
+            {
+                strcpy(addr_str, "[unknown]");
+            }
+            printf("      %s\n", addr_str);
         }
     }
 }
@@ -1592,7 +1600,7 @@ void start_mld(void)
     // Seed the random number generator
     seed = time(NULL) ^ getpid();
     random_state[0] = 0x330e;
-    random_state[1] = ~seed;
+    random_state[1] = seed;
     random_state[2] = seed >> 16;
 
     // Set up the querier for each interface
@@ -1639,6 +1647,6 @@ void start_mld(void)
     r = pthread_create(&thread_id, NULL, &mld_thread, NULL);
     if (r != 0)
     {
-        fatal("cannot create MLD thread: %s\n", strerror(errno));
+        fatal("cannot create MLD thread: %s\n", strerror(r));
     }
 }

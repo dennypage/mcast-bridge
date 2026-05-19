@@ -138,9 +138,12 @@ static void bridge_receive(
         // Send the packet
         if (sendto(peer->sock, local_storage->packet_buffer, bytes, 0, &dst_addr->sa, dst_addr_len) == -1)
         {
-            logger("Bridge(%s/%u): sendto error on interface %s: %s\n",
-                AF_FAMILY_TO_STRING(bridge->family), bridge->port,
-                peer->name, strerror(errno));
+            if (errno != ENETDOWN)
+            {
+                logger("Bridge(%s/%u): sendto error on interface %s: %s\n",
+                    AF_FAMILY_TO_STRING(bridge->family), bridge->port,
+                    peer->name, strerror(errno));
+            }
             continue;
         }
 

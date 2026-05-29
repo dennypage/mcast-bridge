@@ -50,6 +50,7 @@
 #define DEFAULT_IPV4_GROUP      0xef004b00
 #define DEFAULT_IPV6_GROUP      {{{ 0xff, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x75, 0x00 }}}
 #define DEFAULT_PORT            7500
+#define DEFAULT_TTL             1
 
 // Who we are
 static const char *             progname;
@@ -61,6 +62,7 @@ static unsigned int             send_mode = 0;
 static char *                   interface_name = "(default)";
 static unsigned int             interface_index = 0;
 static unsigned int             port = DEFAULT_PORT;
+static unsigned int             ttl = DEFAULT_TTL;
 
 // Group address structures
 static struct sockaddr_in       ipv4_group_sockaddr_in;
@@ -95,7 +97,7 @@ static int bind_ipv4(
 {
     int                         sock;
     const int                   on = 1;
-    const int                   ttl = 1;
+    const int                   ttl = 5;
     struct ip_mreqn             mreqn;
     int                         r;
     struct sockaddr_in          bind_sockaddr =
@@ -355,7 +357,7 @@ static void parse_args(
 
     progname = argv[0];
 
-    while((opt = getopt(argc, argv, "h46nsi:p:")) != -1)
+    while((opt = getopt(argc, argv, "h46nsi:p:t:")) != -1)
     {
         switch (opt)
         {
@@ -399,9 +401,21 @@ static void parse_args(
             ipv6_group_sockaddr_in6.sin6_port = htons(port);
             break;
 
+        case 't':
+            // Insure the ttl number is valid
+            if (strlen(optarg) && strspn(optarg, "0123456789") == strlen(optarg))
+            {
+                ttl = strtoul(optarg, NULL, 10);
+            }
+            if (ttl < 1 || ttl > 255)
+            {
+                fatal("Invalid TTL value \"%s\"\n", optarg);
+            }
+            break;
+
         default:
             fprintf(stderr, "Usage:\n");
-            fprintf(stderr, "  %s [-4|-6] [-n] [-s] [-i interface] [-p port] [multicast address]\n", progname);
+            fprintf(stderr, "  %s [-4|-6] [-n] [-s] [-i interface] [-p port] [-t ttl] [multicast address]\n", progname);
             fprintf(stderr, "\n");
             fprintf(stderr, "  options:\n");
             fprintf(stderr, "    -4 IP version 4 (default)\n");
@@ -410,6 +424,7 @@ static void parse_args(
             fprintf(stderr, "    -s sender mode\n");
             fprintf(stderr, "    -i interface name (default is the system default interface)\n");
             fprintf(stderr, "    -p UDP port (default is 7500)\n");
+            fprintf(stderr, "    -t Multicast TTL (default is 1)\n");
             fprintf(stderr, "\n");
             fprintf(stderr, "  the default multicast address for IP version 4 is %s\n",
                 inet_ntop(AF_INET, &ipv4_group_sockaddr_in.sin_addr, addr_str, sizeof(addr_str)));

@@ -40,7 +40,7 @@
 
 
 // Version number of mcast-bridge
-#define VERSION                 "1.4.0"
+#define VERSION                 "1.5.0"
 
 
 // Maximum packet size for UDP packet we support. Note that this limit

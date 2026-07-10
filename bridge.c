@@ -45,7 +45,17 @@ typedef struct
 {
     bridge_instance_t *         bridge;
     evm_t *                     evm;
+
+    socket_address_t            src_addr;
+    socklen_t                   src_addr_len;
     unsigned char               packet_buffer[MCAST_MAX_PACKET_SIZE];
+
+    // Structures for recvmsg
+    struct msghdr               recv_msg;
+    struct iovec                recv_iovec;
+#if defined(HAVE_IP_RECVIF)
+    char                        cmsg_buf[CMSG_SPACE(sizeof(struct sockaddr_dl))];
+#endif
 } bridge_local_storage_t;
 
 
@@ -63,8 +73,6 @@ static void bridge_receive(
     bridge_instance_t *         bridge;
     bridge_local_storage_t *    local_storage;
     ssize_t                     bytes;
-    socket_address_t            src_addr;
-    socklen_t                   src_addr_len;
     socket_address_t *          dst_addr;
     socklen_t                   dst_addr_len;
     bridge_interface_t *        peer;
@@ -84,20 +92,60 @@ static void bridge_receive(
     dst_addr_len = bridge->dst_addr_len;
 
     // Receive the packet
-    src_addr_len = sizeof(src_addr.storage);
-    bytes = recvfrom(bridge_interface->sock,
-                            local_storage->packet_buffer, sizeof(local_storage->packet_buffer), 0,
-                            &src_addr.sa, &src_addr_len);
+    local_storage->recv_msg.msg_namelen = sizeof(local_storage->src_addr);
+    bytes = recvmsg(bridge_interface->sock, &local_storage->recv_msg, 0);
     if (bytes == -1)
     {
         if (errno != EAGAIN && errno != EWOULDBLOCK)
         {
-            logger("Bridge(%s/%u): recvfrom error on interface %s: %s\n",
+            logger("Bridge(%s/%u): recvmsg error on interface %s: %s\n",
                 AF_FAMILY_TO_STRING(bridge->family), bridge->port,
                 bridge_interface->name, strerror(errno));
         }
         return;
     }
+    local_storage->src_addr_len = local_storage->recv_msg.msg_namelen;
+
+#if defined(HAVE_IP_RECVIF)
+    {
+        struct cmsghdr *        cmsg;
+        struct sockaddr_dl *    sa_dl;
+        bridge_interface_t *    new_interface = NULL;
+        unsigned int            index;
+
+        for (cmsg = CMSG_FIRSTHDR(&local_storage->recv_msg); cmsg != NULL; cmsg = CMSG_NXTHDR(&local_storage->recv_msg, cmsg))
+        {
+            if (cmsg->cmsg_level == IPPROTO_IP && cmsg->cmsg_type == IP_RECVIF)
+            {
+                sa_dl = (struct sockaddr_dl *) CMSG_DATA(cmsg);
+                if (bridge_interface->if_index != sa_dl->sdl_index)
+                {
+                    printf("DEBUG: interface index mismatch: bridge=%u, recv=%u\n", bridge_interface->if_index, sa_dl->sdl_index);
+                    // Look for the correct interface by system interface index
+                    for (index = 0; index < bridge->interface_count; index++)
+                    {
+                        if (bridge->interface_list[index].if_index == sa_dl->sdl_index)
+                        {
+                            new_interface = &bridge->interface_list[index];
+                            break;
+                        }
+                    }
+
+                    // If no interface is found, skip this message
+                    if (new_interface == NULL)
+                    {
+                        printf("DEBUG: no interface found for index %u\n", sa_dl->sdl_index);
+                        return;
+                    }
+
+                    // Assign the correct interface to the packet
+                    printf("DEBUG: assigning interface %u to packet\n", new_interface->if_index);
+                    bridge_interface = new_interface;
+                }
+            }
+        }
+    }
+#endif
 
     // If the interface is not active, drop the packet
     if (bridge_interface->inbound_active == 0)
@@ -110,11 +158,11 @@ static void bridge_receive(
     {
         if (bridge->family == AF_INET)
         {
-            inet_ntop(AF_INET, &src_addr.sin.sin_addr, src_addr_str, sizeof(src_addr_str));
+            inet_ntop(AF_INET, &local_storage->src_addr.sin.sin_addr, src_addr_str, sizeof(src_addr_str));
         }
         else
         {
-            inet_ntop(AF_INET6, &src_addr.sin6.sin6_addr, src_addr_str, sizeof(src_addr_str));
+            inet_ntop(AF_INET6, &local_storage->src_addr.sin6.sin6_addr, src_addr_str, sizeof(src_addr_str));
         }
     }
 
@@ -213,6 +261,17 @@ void start_bridges(void)
         }
         local_storage->bridge = bridge;
 
+        // Initialize recvmsg structures
+        local_storage->recv_msg.msg_name = &local_storage->src_addr;
+        local_storage->recv_msg.msg_namelen = sizeof(local_storage->src_addr);
+        local_storage->recv_msg.msg_iov = &local_storage->recv_iovec;
+        local_storage->recv_msg.msg_iovlen = 1;
+        local_storage->recv_iovec.iov_base = local_storage->packet_buffer;
+        local_storage->recv_iovec.iov_len = sizeof(local_storage->packet_buffer);
+    #if defined(HAVE_IP_RECVIF)
+        local_storage->recv_msg.msg_control = local_storage->cmsg_buf;
+        local_storage->recv_msg.msg_controllen = sizeof(local_storage->cmsg_buf);
+    #endif
 
         // Create the event manager
         local_storage->evm = evm_create(bridge->interface_count, 0);

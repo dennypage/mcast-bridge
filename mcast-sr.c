@@ -291,16 +291,18 @@ static void sender(
 {
     int                         r;
     char                        buffer[64];
+    unsigned int                len;
 
     while (1)
     {
-        snprintf(buffer, sizeof(buffer), "%ld", time(NULL));
-        r = sendto(sock, buffer, strlen(buffer) + 1, 0, group_addr, group_addr_len);
+        len = snprintf(buffer, sizeof(buffer), "%ld", time(NULL)) + 1;
+
+        r = sendto(sock, buffer, len, 0, group_addr, group_addr_len);
         if (r == -1 )
         {
             fatal("sendto error: %s\n", strerror(errno));
         }
-        printf("Sent %ld bytes: %s\n", strlen(buffer),  buffer);
+        printf("Sent %d bytes: %s\n", len,  buffer);
 
         sleep(1);
     }

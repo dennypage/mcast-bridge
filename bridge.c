@@ -53,8 +53,8 @@ typedef struct
     // Structures for recvmsg
     struct msghdr               recv_msg;
     struct iovec                recv_iovec;
-#if defined(HAVE_IP_RECVIF)
-    char                        cmsg_buf[CMSG_SPACE(sizeof(struct sockaddr_dl))];
+#if defined(USE_RECVIF_PKTINFO)
+    char                        cmsg_buf[CMSG_SPACE(256)];
 #endif
 } bridge_local_storage_t;
 
@@ -106,43 +106,58 @@ static void bridge_receive(
     }
     local_storage->src_addr_len = local_storage->recv_msg.msg_namelen;
 
-#if defined(HAVE_IP_RECVIF)
+#if defined(USE_RECVIF_PKTINFO)
     {
         struct cmsghdr *        cmsg;
-        struct sockaddr_dl *    sa_dl;
         bridge_interface_t *    new_interface = NULL;
+        unsigned int            recv_if_index = 0;
         unsigned int            index;
 
-        for (cmsg = CMSG_FIRSTHDR(&local_storage->recv_msg); cmsg != NULL; cmsg = CMSG_NXTHDR(&local_storage->recv_msg, cmsg))
+        if (bridge->family == AF_INET)
         {
-            if (cmsg->cmsg_level == IPPROTO_IP && cmsg->cmsg_type == IP_RECVIF)
+            for (cmsg = CMSG_FIRSTHDR(&local_storage->recv_msg); cmsg != NULL; cmsg = CMSG_NXTHDR(&local_storage->recv_msg, cmsg))
             {
-                sa_dl = (struct sockaddr_dl *) CMSG_DATA(cmsg);
-                if (bridge_interface->if_index != sa_dl->sdl_index)
+                if (cmsg->cmsg_level == IPPROTO_IP && cmsg->cmsg_type == IP_RECVIF)
                 {
-                    printf("DEBUG: interface index mismatch: bridge=%u, recv=%u\n", bridge_interface->if_index, sa_dl->sdl_index);
-                    // Look for the correct interface by system interface index
-                    for (index = 0; index < bridge->interface_count; index++)
-                    {
-                        if (bridge->interface_list[index].if_index == sa_dl->sdl_index)
-                        {
-                            new_interface = &bridge->interface_list[index];
-                            break;
-                        }
-                    }
-
-                    // If no interface is found, skip this message
-                    if (new_interface == NULL)
-                    {
-                        printf("DEBUG: no interface found for index %u\n", sa_dl->sdl_index);
-                        return;
-                    }
-
-                    // Assign the correct interface to the packet
-                    printf("DEBUG: assigning interface %u to packet\n", new_interface->if_index);
-                    bridge_interface = new_interface;
+                    struct sockaddr_dl * sa_dl = (struct sockaddr_dl *) CMSG_DATA(cmsg);
+                    recv_if_index = sa_dl->sdl_index;
+                    break;
                 }
             }
+        }
+        else
+        {
+            for (cmsg = CMSG_FIRSTHDR(&local_storage->recv_msg); cmsg != NULL; cmsg = CMSG_NXTHDR(&local_storage->recv_msg, cmsg))
+            {
+                if (cmsg->cmsg_level == IPPROTO_IPV6 && cmsg->cmsg_type == IPV6_PKTINFO)
+                {
+                    struct in6_pktinfo * pkt_info = (struct in6_pktinfo *) CMSG_DATA(cmsg);
+                    recv_if_index = pkt_info->ipi6_ifindex;
+                    break;
+                }
+            }
+        }
+
+        // If the recieve interface doesn't match, look for the correct interface
+        if (recv_if_index != bridge_interface->if_index)
+        {
+            for (index = 0; index < bridge->interface_count; index++)
+            {
+                if (bridge->interface_list[index].if_index == recv_if_index)
+                {
+                    new_interface = &bridge->interface_list[index];
+                    break;
+                }
+            }
+
+            // If no interface is found, skip this message
+            if (new_interface == NULL)
+            {
+                return;
+            }
+
+            // Assign the correct interface to the packet
+            bridge_interface = new_interface;
         }
     }
 #endif
@@ -268,7 +283,7 @@ void start_bridges(void)
         local_storage->recv_msg.msg_iovlen = 1;
         local_storage->recv_iovec.iov_base = local_storage->packet_buffer;
         local_storage->recv_iovec.iov_len = sizeof(local_storage->packet_buffer);
-    #if defined(HAVE_IP_RECVIF)
+    #if defined(USE_RECVIF_PKTINFO)
         local_storage->recv_msg.msg_control = local_storage->cmsg_buf;
         local_storage->recv_msg.msg_controllen = sizeof(local_storage->cmsg_buf);
     #endif

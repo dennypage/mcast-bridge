@@ -77,20 +77,20 @@ static void interface_bind_ipv4(
     }
 
     // Set interface specific binding if available
-#if defined(HAVE_SO_BINDTODEVICE)
+#if defined(USE_BINDTODEVICE)
     r = setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, bridge_interface->name, strlen(bridge_interface->name) + 1);
     if (r == -1)
     {
         fatal("setsockopt (SO_BINDTODEVICE) for IPv4 on %s failed: %s\n", bridge_interface->name, strerror(errno));
     }
-#elif defined(HAVE_IP_BOUND_IF)
+#elif defined(USE_BOUND_IF)
     r = setsockopt(sock, IPPROTO_IP, IP_BOUND_IF, &bridge_interface->if_index, sizeof(bridge_interface->if_index));
     if (r == -1)
     {
         fatal("setsockopt (IP_BOUND_IF) for IPv4 on %s failed: %s\n", bridge_interface->name, strerror(errno));
     }
-#elif defined(HAVE_IP_RECVIF)
-    r = setsockopt(sock, IPPROTO_IP, IP_RECVIF, &bridge_interface->if_index, sizeof(bridge_interface->if_index));
+#elif defined(USE_RECVIF_PKTINFO)
+    r = setsockopt(sock, IPPROTO_IP, IP_RECVIF, (void *)&on, sizeof(on));
     if (r == -1)
     {
         fatal("setsockopt (IP_RECVIF) for IPv4 on %s failed: %s\n", bridge_interface->name, strerror(errno));
@@ -121,6 +121,7 @@ static void interface_bind_ipv4(
     }
 
     // Bind the socket
+    memset(&sin, 0, sizeof(sin));
     sin.sin_family = AF_INET;
     sin.sin_addr.s_addr = htonl(INADDR_ANY);
     sin.sin_port = htons(bridge->port);
@@ -160,7 +161,11 @@ static void interface_bind_ipv6(
     }
 
     // Ensure we don't end up with a mixed IPv4 / IPv6 socket
-    setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (void *) &on, sizeof(on));
+    r = setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (void *) &on, sizeof(on));
+    if (r == -1)
+    {
+        fatal("setsockopt (IPV6_V6ONLY) failed: %s\n", strerror(errno));
+    }
 
     // Set SO_REUSEADDR and SO_REUSEPORT
     r = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &on, sizeof(on));
@@ -175,24 +180,23 @@ static void interface_bind_ipv6(
     }
 
     // Set interface specific binding if available
-#if defined(HAVE_SO_BINDTODEVICE)
+#if defined(USE_BINDTODEVICE)
     r = setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, bridge_interface->name, strlen(bridge_interface->name) + 1);
     if (r == -1)
     {
         fatal("setsockopt (SO_BINDTODEVICE) for IPv6 on %s failed: %s\n", bridge_interface->name, strerror(errno));
     }
-#elif defined(HAVE_IP_BOUND_IF)
+#elif defined(USE_BOUND_IF)
     r = setsockopt(sock, IPPROTO_IPV6, IPV6_BOUND_IF, &bridge_interface->if_index, sizeof(bridge_interface->if_index));
     if (r == -1)
     {
         fatal("setsockopt (IPV6_BOUND_IF) for IPv6 on %s failed: %s\n", bridge_interface->name, strerror(errno));
     }
-#elif defined(HAVE_IP_RECVIF)
-    // NB: Yes, it's supposed to be IP_RECVIF, not IPV6_RECVIF
-    r = setsockopt(sock, IPPROTO_IPV6, IP_RECVIF, &bridge_interface->if_index, sizeof(bridge_interface->if_index));
+#elif defined(USE_RECVIF_PKTINFO)
+    r = setsockopt(sock, IPPROTO_IPV6, IPV6_RECVPKTINFO, (void *)&on, sizeof(on));
     if (r == -1)
     {
-        fatal("setsockopt (IP_RECVIF) for IPv6 on %s failed: %s\n", bridge_interface->name, strerror(errno));
+        fatal("setsockopt (IPV6_RECVPKTINFO) for IPv6 on %s failed: %s\n", bridge_interface->name, strerror(errno));
     }
 #else
 #  error Missing method to set or determine the inbound interface
@@ -220,6 +224,7 @@ static void interface_bind_ipv6(
     }
 
     // Bind the socket
+    memset(&sin6, 0, sizeof(sin6));
     sin6.sin6_family = AF_INET6;
     memcpy(&sin6.sin6_addr, &in6addr_any, sizeof(sin6.sin6_addr));
     sin6.sin6_port = htons(bridge->port);
@@ -265,8 +270,8 @@ static void interface_activate_inbound(
     {
         memset(&mreq, 0, sizeof(mreq));
         mreq.imr_ifindex = bridge_interface->if_index;
-        mreq.imr_address = bridge_interface->ipv4_addr;
         mreq.imr_multiaddr = bridge->dst_addr.sin.sin_addr;
+        mreq.imr_address = bridge_interface->ipv4_addr;
         r = setsockopt(bridge_interface->sock, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq));
         if (r == -1)
         {

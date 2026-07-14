@@ -1485,7 +1485,7 @@ static void mld_dump_config(void)
         mld_interface = &mld_interface_list[interface_index];
         if (inet_ntop(AF_INET6, mld_interface->if_addr, addr_str, sizeof(addr_str)) == NULL)
         {
-            strcpy(addr_str, "[unknown]");
+            snprintf(addr_str, sizeof(addr_str), "[unknown]");
         }
 
         printf("  Interface: %s\n", mld_interface->name);
@@ -1500,7 +1500,7 @@ static void mld_dump_config(void)
             mld_group = &mld_interface->group_list[group_index];
             if (inet_ntop(AF_INET6, mld_group->mcast_addr, addr_str, sizeof(addr_str)) == NULL)
             {
-                strcpy(addr_str, "[unknown]");
+                snprintf(addr_str, sizeof(addr_str), "[unknown]");
             }
             printf("      %s\n", addr_str);
         }

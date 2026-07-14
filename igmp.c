@@ -1566,7 +1566,7 @@ static void igmp_dump_config(void)
         igmp_interface = &igmp_interface_list[interface_index];
         if (inet_ntop(AF_INET, igmp_interface->if_addr, addr_str, sizeof(addr_str)) == NULL)
         {
-            strcpy(addr_str, "[unknown]");
+            snprintf(addr_str, sizeof(addr_str), "[unknown]");
         }
         printf("  Interface: %s\n", igmp_interface->name);
         printf("    if index: %d\n", igmp_interface->if_index);
@@ -1580,7 +1580,7 @@ static void igmp_dump_config(void)
             igmp_group = &igmp_interface->group_list[group_index];
             if (inet_ntop(AF_INET, igmp_group->mcast_addr, addr_str, sizeof(addr_str)) == NULL)
             {
-                strcpy(addr_str, "[unknown]");
+                snprintf(addr_str, sizeof(addr_str), "[unknown]");
             }
             printf("      %s\n", addr_str);
         }

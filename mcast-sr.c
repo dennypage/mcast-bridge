@@ -134,7 +134,7 @@ static int bind_ipv4(
     {
         // Set interface specific binding if available
 #if defined(SO_BINDTODEVICE)
-        r = setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, interface_name, strlen(interface_name));
+        r = setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, interface_name, strlen(interface_name) + 1);
         if (r == -1)
         {
             fatal("setsockopt (SO_BINDTODEVICE) for IPv4 on %s failed: %s\n", interface_name, strerror(errno));
@@ -159,7 +159,7 @@ static int bind_ipv4(
     r = setsockopt(sock, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));
     if (r == -1)
     {
-        fatal("setsockopt (IP_MULTICAST_TTL) for IPv6 on %s failed: %s\n", interface_name, strerror(errno));
+        fatal("setsockopt (IP_MULTICAST_TTL) for IPv4 on %s failed: %s\n", interface_name, strerror(errno));
     }
 
     // Bind the socket
@@ -214,7 +214,11 @@ static int bind_ipv6(
     }
 
     // Ensure we don't end up with a mixed IPv4 / IPv6 socket
-    setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (void *) &on, sizeof(on));
+    r = setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, (void *) &on, sizeof(on));
+    if (r == -1)
+    {
+        fatal("setsockopt (IPV6_V6ONLY) failed: %s\n", strerror(errno));
+    }
 
     // Set SO_REUSEADDR and SO_REUSEPORT
     r = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *) &on, sizeof(on));
@@ -232,7 +236,7 @@ static int bind_ipv6(
     {
         // Set interface specific binding if available
 #if defined(SO_BINDTODEVICE)
-        r = setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, interface_name, strlen(interface_name));
+        r = setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, interface_name, strlen(interface_name) + 1);
         if (r == -1)
         {
             fatal("setsockopt (SO_BINDTODEVICE) for IPv6 on %s failed: %s\n", interface_name, strerror(errno));
@@ -296,7 +300,6 @@ static void sender(
     while (1)
     {
         len = snprintf(buffer, sizeof(buffer), "%ld", time(NULL)) + 1;
-
         r = sendto(sock, buffer, len, 0, group_addr, group_addr_len);
         if (r == -1 )
         {
@@ -322,6 +325,7 @@ static void receiver(
     ssize_t                     bytes;
     char                        src_addr_str[NI_MAXHOST];
     char                        buffer[64];
+    int                         r;
 
     while (1)
     {
@@ -333,14 +337,22 @@ static void receiver(
         {
             fatal("recvfrom error: %s\n", strerror(errno));
         }
-        if (bytes == sizeof(buffer))
+
+        if (bytes >= sizeof(buffer))
         {
             // Message was truncated
             buffer[sizeof(buffer) - 1] = '\0';
         }
+        else
+        {
+            buffer[bytes] = '\0';
+        }
 
-        getnameinfo(src_addr, src_addr_len, src_addr_str, sizeof(src_addr_str), NULL, 0, numeric);
-        port = ntohs(((struct sockaddr_in *) src_addr)->sin_port);
+        r = getnameinfo(src_addr, src_addr_len, src_addr_str, sizeof(src_addr_str), NULL, 0, numeric);
+        if (r)
+        {
+            snprintf(src_addr_str, sizeof(src_addr_str), "[unknown]");
+        }
         printf("Received %ld bytes from %s: %s\n", bytes, src_addr_str, buffer);
     }
 }

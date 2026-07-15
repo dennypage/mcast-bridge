@@ -155,7 +155,7 @@ static void usage(
     fprintf(stderr, "    -M MLD querier mode\n");
     fprintf(stderr, "    -D debug level\n");
     fprintf(stderr, "\n");
-    fprintf(stderr, "  Avalable IGMP/MLD querier modes:\n");
+    fprintf(stderr, "  Available IGMP/MLD querier modes:\n");
     fprintf(stderr, "    never  Never become a querier\n");
     fprintf(stderr, "    quick  Become a querier immediately at startup (default, RFC behavior)\n");
     fprintf(stderr, "    delay  Become a querier after 125 seconds if no other querier has been seen\n");

@@ -338,7 +338,7 @@ static void receiver(
             fatal("recvfrom error: %s\n", strerror(errno));
         }
 
-        if (bytes >= sizeof(buffer))
+        if (bytes >= (ssize_t) sizeof(buffer))
         {
             // Message was truncated
             buffer[sizeof(buffer) - 1] = '\0';

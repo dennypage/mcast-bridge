@@ -918,7 +918,6 @@ void read_config(void)
                 {
                     draft_interface = add_draft_interface(&draft_bridge, list_array[list_array_index]);
                     draft_interface->inbound_configuration = INTERFACE_CONFIG_STATIC;
-
                 }
             }
             else if (strcmp(line, KEY_STATIC_OUTBOUND_INTERFACES) == 0)

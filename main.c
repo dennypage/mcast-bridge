@@ -144,7 +144,7 @@ static void usage(
     void)
 {
     fprintf(stderr, "Usage:\n");
-    fprintf(stderr, "  %s [-h] [-f] [-s] [-c config_file] [-p pid_file] [-Q IGMP_querier_mode] [-M MLD_querier_mode] [-D debug_level]\n", progname);
+    fprintf(stderr, "  %s [-h] [-f] [-s] [-c config_file] [-p pid_file] [-I IGMP_querier_mode] [-M MLD_querier_mode] [-D debug_level]\n", progname);
     fprintf(stderr, "  Options:\n");
     fprintf(stderr, "    -h display usage\n");
     fprintf(stderr, "    -f run in foreground\n");

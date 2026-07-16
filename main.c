@@ -88,7 +88,7 @@ void logger(
         {
             struct timespec ts;
             clock_gettime(CLOCK_REALTIME, &ts);
-            fprintf(stderr ,"%ld.%06ld: ", (long) ts.tv_sec, ts.tv_nsec / 1000);
+            fprintf(stderr, "%ld.%06ld: ", (long) ts.tv_sec, ts.tv_nsec / 1000);
         }
 
         vfprintf(stderr, format, args);

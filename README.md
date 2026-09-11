@@ -167,8 +167,8 @@ Things to keep in mind regarding static vs dynamic inbound interfaces:
 
 mcast-bridge implements IGMP and MLD to detect the presence of multicast
 subscribers in the network networks. The IGMP implementation is based on
-RFC 2236 and RFC 9976, while the MLD implementation is based on RFC 2236
-and RFC 9976. In the context of those standards, mcast-bridge operates
+RFC 2236 and RFC 9776, while the MLD implementation is based on RFC 2710
+and RFC 9777. In the context of those standards, mcast-bridge operates
 as a multicast router, including the ability to operate as the elected
 querier in the network.
 

@@ -277,6 +277,7 @@ static void interface_activate_inbound(
         {
             logger("Bridge(IPv4/%u): setsockopt (IP_ADD_MEMBERSHIP) on interface %s failed: %s\n",
                 bridge->port, bridge_interface->name, strerror(errno));
+            return;
         }
     }
     else
@@ -289,6 +290,7 @@ static void interface_activate_inbound(
         {
             logger("Bridge(IPv6/%u): setsockopt (IPV6_JOIN_GROUP) on interface %s failed: %s\n",
                 bridge->port, bridge_interface->name, strerror(errno));
+            return;
         }
     }
 

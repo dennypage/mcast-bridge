@@ -43,7 +43,7 @@
 
 
 //
-// The IGMP implementation herein is primarily based on RFC 2236 and RFC 9976.
+// The IGMP implementation herein is primarily based on RFC 2236 and RFC 9776.
 //
 // The implementation deviates from the standards in the following aspects:
 //
@@ -762,7 +762,7 @@ static void handle_igmp_query(
             {
                 igmp_interface->querier_robustness = MCB_IGMP_ROBUSTNESS;
                 igmp_interface->querier_interval_sec = MCB_IGMP_QUERY_INTERVAL;
-                igmp_interface->querier_response_interval_tenths = MCB_IGMP_RESPONSE_INTERVAL;
+                igmp_interface->querier_response_interval_tenths = query->code ? query->code : MCB_IGMP_RESPONSE_INTERVAL;
             }
 
             igmp_log(igmp_interface, igmp_interface->querier_addr, "New querier elected");
@@ -772,7 +772,7 @@ static void handle_igmp_query(
     // Record the current querier values
     if (v3_flag)
     {
-        igmp_interface->querier_robustness = query->qrv;
+        igmp_interface->querier_robustness = query->qrv ? query->qrv : MCB_IGMP_ROBUSTNESS;
         igmp_interface->querier_interval_sec = timecode_8bit_decode(query->qqic);
         igmp_interface->querier_response_interval_tenths = timecode_8bit_decode(query->code);
     }
@@ -1234,6 +1234,11 @@ static void igmp_receive(
 
     // Check the total length
     ip_total_len = ntohs(ip->total_len);
+    if (ip_total_len < ip_header_len)
+    {
+        igmp_log(igmp_interface, ip->src, "IP packet length error");
+        return;
+    }
     if (ip_total_len > packet_len)
     {
         igmp_log(igmp_interface, ip->src, "IP packet overrun");

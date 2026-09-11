@@ -127,6 +127,10 @@ void * evm_create(
     if (max_socket_count)
     {
         evm->socket_list = calloc(max_socket_count, sizeof(socket_event_t));
+        if (evm->socket_list == NULL)
+        {
+            fatal("Cannot allocate memory: %s\n", strerror(errno));
+        }
         evm->socket_list_allocated = max_socket_count;
 
 #if defined(HAVE_EPOLL)
@@ -165,6 +169,10 @@ void * evm_create(
     if (max_timer_count)
     {
         evm->timer_list = calloc(max_timer_count, sizeof(timer_event_t));
+        if (evm->timer_list == NULL)
+        {
+            fatal("Cannot allocate memory: %s\n", strerror(errno));
+        }
         evm->timer_list_allocated = max_timer_count;
     }
 

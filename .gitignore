@@ -1,4 +1,5 @@
 *.o
+*.plist
 mcast-bridge
 mcast-sr
 mcast-bridge.conf

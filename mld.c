@@ -760,6 +760,10 @@ static void handle_mld_query(
     if (v2_flag)
     {
         mld_interface->querier_robustness = query->qrv;
+        if (mld_interface->querier_robustness == 0)
+        {
+            mld_interface->querier_robustness = MCB_MLD_ROBUSTNESS;
+        }
         mld_interface->querier_interval_sec = timecode_8bit_decode(query->qqic);
         mld_interface->querier_response_interval_millis = timecode_16bit_decode(ntohs(query->response));
     }
@@ -1130,6 +1134,18 @@ static void mld_receive(
 
     // Parse the IPv6 header
     ip = (mcb_ip6_t *) packet;
+
+    // Ignore packets without a link-local source address
+    if (ip->src[0] != 0xfe || (ip->src[1] & 0xc0) != 0x80)
+    {
+        return;
+    }
+
+    // Ignore packets with an incorrect hop limit
+    if (ip->hop_limit != 1)
+    {
+        return;
+    }
 
     // Ignore my own packets
     if (MCB_IP6_ADDR_CMP(ip->src, mld_interface->if_addr) == 0)

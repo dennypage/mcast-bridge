@@ -43,7 +43,7 @@
 
 
 //
-// The MLD implementation herein is primarily based on RFC 2236 and RFC 9976.
+// The MLD implementation herein is primarily based on RFC 2710 and RFC 9777.
 //
 // The implementation deviates from the standards in the following aspects:
 //
@@ -759,11 +759,7 @@ static void handle_mld_query(
     // Record the current querier values
     if (v2_flag)
     {
-        mld_interface->querier_robustness = query->qrv;
-        if (mld_interface->querier_robustness == 0)
-        {
-            mld_interface->querier_robustness = MCB_MLD_ROBUSTNESS;
-        }
+        mld_interface->querier_robustness = query->qrv ? query->qrv : MCB_MLD_ROBUSTNESS;
         mld_interface->querier_interval_sec = timecode_8bit_decode(query->qqic);
         mld_interface->querier_response_interval_millis = timecode_16bit_decode(ntohs(query->response));
     }
